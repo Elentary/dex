@@ -103,7 +103,7 @@ func newServer(ctx context.Context, c Config) (*Server, error) {
 		Logger:    s.logger,
 		IssuerURL: s.issuerURL,
 	}
-	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger)
+	s.issuer = tokens.NewIssuer(s.storage, c.Signer, s.issuerURL.URL, rc.idTokensValidFor, rc.now, s.logger, c.RefreshTokenPolicy)
 	s.connectors = connectors.NewCache(s.storage, connectors.Resolver(s.storage, s.logger, ConnectorsConfig))
 	s.backchannel = &backchannel.Notifier{
 		Storage:   s.storage,
@@ -385,6 +385,9 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			case <-ctx.Done():
 				return
 			case <-time.After(frequency):
+				if err := s.issuer.Refresh.GarbageCollect(ctx); err != nil {
+					s.logger.ErrorContext(ctx, "refresh garbage collection failed", "err", err)
+				}
 				if r, err := s.storage.GarbageCollect(ctx, now()); err != nil {
 					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {

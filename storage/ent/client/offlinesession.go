@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // CreateOfflineSessions saves provided offline session into the database.
@@ -15,6 +16,10 @@ func (d *Database) CreateOfflineSessions(ctx context.Context, session storage.Of
 		return fmt.Errorf("encode refresh offline session: %w", err)
 	}
 
+	encodedTokens, err := json.Marshal(session.RefreshTokens)
+	if err != nil {
+		return err
+	}
 	id := compositeKeyID(session.UserID, session.ConnID, d.hasher)
 	_, err = d.client.OfflineSession.Create().
 		SetID(id).
@@ -22,6 +27,7 @@ func (d *Database) CreateOfflineSessions(ctx context.Context, session storage.Of
 		SetConnID(session.ConnID).
 		SetConnectorData(session.ConnectorData).
 		SetRefresh(encodedRefresh).
+		SetRefreshTokens(encodedTokens).
 		Save(ctx)
 	if err != nil {
 		return convertDBError("create offline session: %w", err)
@@ -53,6 +59,10 @@ func (d *Database) DeleteOfflineSessions(ctx context.Context, userID, connID str
 
 // UpdateOfflineSessions changes an offline session by user id and connector id using an updater function.
 func (d *Database) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
+	return sqlretry.Do(ctx, func() error { return d.updateOfflineSessions(ctx, userID, connID, updater) })
+}
+
+func (d *Database) updateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	id := compositeKeyID(userID, connID, d.hasher)
 
 	tx, err := d.BeginTx(ctx)
@@ -75,11 +85,16 @@ func (d *Database) UpdateOfflineSessions(ctx context.Context, userID string, con
 		return rollback(tx, "encode refresh offline session: %w", err)
 	}
 
+	encodedTokens, err := json.Marshal(newOfflineSession.RefreshTokens)
+	if err != nil {
+		return rollback(tx, "encode refresh tokens: %w", err)
+	}
 	_, err = tx.OfflineSession.UpdateOneID(id).
 		SetUserID(newOfflineSession.UserID).
 		SetConnID(newOfflineSession.ConnID).
 		SetConnectorData(newOfflineSession.ConnectorData).
 		SetRefresh(encodedRefresh).
+		SetRefreshTokens(encodedTokens).
 		Save(ctx)
 	if err != nil {
 		return rollback(tx, "update offline session uploading: %w", err)

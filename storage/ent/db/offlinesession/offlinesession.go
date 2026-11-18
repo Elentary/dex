@@ -11,6 +11,8 @@ const (
 	Label = "offline_session"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldRefreshTokens holds the string denoting the refresh_tokens field in the database.
+	FieldRefreshTokens = "refresh_tokens"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldConnID holds the string denoting the conn_id field in the database.
@@ -26,6 +28,7 @@ const (
 // Columns holds all SQL columns for offlinesession fields.
 var Columns = []string{
 	FieldID,
+	FieldRefreshTokens,
 	FieldUserID,
 	FieldConnID,
 	FieldRefresh,

@@ -20,6 +20,20 @@ type OAuth2ClientCreate struct {
 	hooks    []Hook
 }
 
+// SetRefreshTokenLimit sets the "refresh_token_limit" field.
+func (_c *OAuth2ClientCreate) SetRefreshTokenLimit(v uint32) *OAuth2ClientCreate {
+	_c.mutation.SetRefreshTokenLimit(v)
+	return _c
+}
+
+// SetNillableRefreshTokenLimit sets the "refresh_token_limit" field if the given value is not nil.
+func (_c *OAuth2ClientCreate) SetNillableRefreshTokenLimit(v *uint32) *OAuth2ClientCreate {
+	if v != nil {
+		_c.SetRefreshTokenLimit(*v)
+	}
+	return _c
+}
+
 // SetSecret sets the "secret" field.
 func (_c *OAuth2ClientCreate) SetSecret(v string) *OAuth2ClientCreate {
 	_c.mutation.SetSecret(v)
@@ -155,6 +169,10 @@ func (_c *OAuth2ClientCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *OAuth2ClientCreate) defaults() {
+	if _, ok := _c.mutation.RefreshTokenLimit(); !ok {
+		v := oauth2client.DefaultRefreshTokenLimit
+		_c.mutation.SetRefreshTokenLimit(v)
+	}
 	if _, ok := _c.mutation.BackchannelLogoutURI(); !ok {
 		v := oauth2client.DefaultBackchannelLogoutURI
 		_c.mutation.SetBackchannelLogoutURI(v)
@@ -167,6 +185,9 @@ func (_c *OAuth2ClientCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *OAuth2ClientCreate) check() error {
+	if _, ok := _c.mutation.RefreshTokenLimit(); !ok {
+		return &ValidationError{Name: "refresh_token_limit", err: errors.New(`db: missing required field "OAuth2Client.refresh_token_limit"`)}
+	}
 	if _, ok := _c.mutation.Secret(); !ok {
 		return &ValidationError{Name: "secret", err: errors.New(`db: missing required field "OAuth2Client.secret"`)}
 	}
@@ -233,6 +254,10 @@ func (_c *OAuth2ClientCreate) createSpec() (*OAuth2Client, *sqlgraph.CreateSpec)
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
+	}
+	if value, ok := _c.mutation.RefreshTokenLimit(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLimit, field.TypeUint32, value)
+		_node.RefreshTokenLimit = value
 	}
 	if value, ok := _c.mutation.Secret(); ok {
 		_spec.SetField(oauth2client.FieldSecret, field.TypeString, value)

@@ -11,6 +11,8 @@ const (
 	Label = "oauth2client"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldRefreshTokenLimit holds the string denoting the refresh_token_limit field in the database.
+	FieldRefreshTokenLimit = "refresh_token_limit"
 	// FieldSecret holds the string denoting the secret field in the database.
 	FieldSecret = "secret"
 	// FieldRedirectUris holds the string denoting the redirect_uris field in the database.
@@ -44,6 +46,7 @@ const (
 // Columns holds all SQL columns for oauth2client fields.
 var Columns = []string{
 	FieldID,
+	FieldRefreshTokenLimit,
 	FieldSecret,
 	FieldRedirectUris,
 	FieldTrustedPeers,
@@ -70,6 +73,8 @@ func ValidColumn(column string) bool {
 }
 
 var (
+	// DefaultRefreshTokenLimit holds the default value on creation for the "refresh_token_limit" field.
+	DefaultRefreshTokenLimit uint32
 	// SecretValidator is a validator for the "secret" field. It is called by the builders before save.
 	SecretValidator func(string) error
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
@@ -90,6 +95,11 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByRefreshTokenLimit orders the results by the refresh_token_limit field.
+func ByRefreshTokenLimit(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRefreshTokenLimit, opts...).ToFunc()
 }
 
 // BySecret orders the results by the secret field.

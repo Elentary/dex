@@ -62,6 +62,11 @@ func IDContainsFold(id string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldContainsFold(FieldID, id))
 }
 
+// RefreshTokenLimit applies equality check predicate on the "refresh_token_limit" field. It's identical to RefreshTokenLimitEQ.
+func RefreshTokenLimit(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRefreshTokenLimit, v))
+}
+
 // Secret applies equality check predicate on the "secret" field. It's identical to SecretEQ.
 func Secret(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldSecret, v))
@@ -90,6 +95,46 @@ func BackchannelLogoutURI(v string) predicate.OAuth2Client {
 // RefreshTokenLifetime applies equality check predicate on the "refresh_token_lifetime" field. It's identical to RefreshTokenLifetimeEQ.
 func RefreshTokenLifetime(v string) predicate.OAuth2Client {
 	return predicate.OAuth2Client(sql.FieldEQ(FieldRefreshTokenLifetime, v))
+}
+
+// RefreshTokenLimitEQ applies the EQ predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitEQ(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldEQ(FieldRefreshTokenLimit, v))
+}
+
+// RefreshTokenLimitNEQ applies the NEQ predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitNEQ(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNEQ(FieldRefreshTokenLimit, v))
+}
+
+// RefreshTokenLimitIn applies the In predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitIn(vs ...uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldIn(FieldRefreshTokenLimit, vs...))
+}
+
+// RefreshTokenLimitNotIn applies the NotIn predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitNotIn(vs ...uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldNotIn(FieldRefreshTokenLimit, vs...))
+}
+
+// RefreshTokenLimitGT applies the GT predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitGT(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGT(FieldRefreshTokenLimit, v))
+}
+
+// RefreshTokenLimitGTE applies the GTE predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitGTE(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldGTE(FieldRefreshTokenLimit, v))
+}
+
+// RefreshTokenLimitLT applies the LT predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitLT(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLT(FieldRefreshTokenLimit, v))
+}
+
+// RefreshTokenLimitLTE applies the LTE predicate on the "refresh_token_limit" field.
+func RefreshTokenLimitLTE(v uint32) predicate.OAuth2Client {
+	return predicate.OAuth2Client(sql.FieldLTE(FieldRefreshTokenLimit, v))
 }
 
 // SecretEQ applies the EQ predicate on the "secret" field.

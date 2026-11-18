@@ -37,6 +37,7 @@ type RefreshToken struct {
 // Fields of the RefreshToken.
 func (RefreshToken) Fields() []ent.Field {
 	return []ent.Field{
+		field.String("state").Default(""),
 		field.Text("id").
 			SchemaType(textSchema).
 			NotEmpty().

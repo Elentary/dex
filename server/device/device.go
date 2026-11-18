@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/grants"
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/server/oauth2"
 	"github.com/dexidp/dex/server/router"
 	"github.com/dexidp/dex/server/templates"
@@ -393,10 +394,39 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
 	}
 	resp, err := h.Issuer.IssueResponse(ctx, auth, authCode.ID, withRefresh)
+	if errors.Is(err, tokens.ErrRefreshTokenLimit) {
+		if updateErr := h.Storage.UpdateDeviceToken(ctx, deviceReq.DeviceCode, func(old storage.DeviceToken) (storage.DeviceToken, error) {
+			if old.Status != oauth2.DeviceTokenPending {
+				return old, errors.New("device authorization is no longer pending")
+			}
+			old.Status = oauth2.InvalidGrant
+			return old, nil
+		}); updateErr != nil {
+			return "", &deviceFlowError{status: http.StatusInternalServerError, code: oauth2.ServerError}
+		}
+		return "", &deviceFlowError{status: http.StatusBadRequest, code: oauth2.InvalidGrant, message: tokens.ErrRefreshTokenLimit.Error()}
+	}
 	if err != nil {
 		h.Logger.ErrorContext(ctx, "could not issue tokens for device flow", "client_id", deviceReq.ClientID, "err", err)
 		return "", &deviceFlowError{status: http.StatusInternalServerError, message: "Failed to exchange auth code."}
 	}
+
+	published := false
+	defer func() {
+		if published || resp.RefreshToken == "" {
+			return
+		}
+		var token internal.RefreshToken
+		if err := internal.Unmarshal(resp.RefreshToken, &token); err != nil {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		_, err := h.Issuer.Refresh.Revoke(cleanupCtx, auth.Claims.UserID, auth.ConnectorID, func(ref *storage.RefreshTokenRef) bool { return ref.ID == token.RefreshId && ref.ClientID == client.ID })
+		if err != nil {
+			h.Logger.ErrorContext(ctx, "revoke unpublished device refresh token", "err", err)
+		}
+	}()
 
 	old, err := h.Storage.GetDeviceToken(ctx, deviceReq.DeviceCode)
 	if err != nil || h.Now().After(old.Expiry) {
@@ -428,5 +458,6 @@ func (h *Handler) completeDeviceAuthorization(w http.ResponseWriter, r *http.Req
 		return "", &deviceFlowError{status: http.StatusBadRequest, message: ""}
 	}
 
+	published = true
 	return client.Name, nil
 }

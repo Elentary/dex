@@ -18,6 +18,8 @@ type OAuth2Client struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// RefreshTokenLimit holds the value of the "refresh_token_limit" field.
+	RefreshTokenLimit uint32 `json:"refresh_token_limit,omitempty"`
 	// Secret holds the value of the "secret" field.
 	Secret string `json:"secret,omitempty"`
 	// RedirectUris holds the value of the "redirect_uris" field.
@@ -56,6 +58,8 @@ func (*OAuth2Client) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case oauth2client.FieldPublic:
 			values[i] = new(sql.NullBool)
+		case oauth2client.FieldRefreshTokenLimit:
+			values[i] = new(sql.NullInt64)
 		case oauth2client.FieldID, oauth2client.FieldSecret, oauth2client.FieldName, oauth2client.FieldLogoURL, oauth2client.FieldBackchannelLogoutURI, oauth2client.FieldRefreshTokenLifetime:
 			values[i] = new(sql.NullString)
 		default:
@@ -78,6 +82,12 @@ func (_m *OAuth2Client) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				_m.ID = value.String
+			}
+		case oauth2client.FieldRefreshTokenLimit:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_token_limit", values[i])
+			} else if value.Valid {
+				_m.RefreshTokenLimit = uint32(value.Int64)
 			}
 		case oauth2client.FieldSecret:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -207,6 +217,9 @@ func (_m *OAuth2Client) String() string {
 	var builder strings.Builder
 	builder.WriteString("OAuth2Client(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("refresh_token_limit=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RefreshTokenLimit))
+	builder.WriteString(", ")
 	builder.WriteString("secret=")
 	builder.WriteString(_m.Secret)
 	builder.WriteString(", ")

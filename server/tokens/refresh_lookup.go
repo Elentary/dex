@@ -39,6 +39,20 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 		return nil, ErrRefreshTokenInvalid
 	}
 
+	if refresh.State != "" {
+		return nil, ErrRefreshTokenInvalid
+	}
+	session, err := s.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)
+	if errors.Is(err, storage.ErrNotFound) {
+		return nil, ErrRefreshTokenInvalid
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get refresh membership: %w", err)
+	}
+	if session.RefreshTokenRef(refresh.ClientID, refresh.ID) == nil {
+		return nil, ErrRefreshTokenInvalid
+	}
+
 	// Only check the client when one was provided (introspection does not).
 	// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 	if clientID != nil && refresh.ClientID != *clientID {

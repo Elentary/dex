@@ -262,12 +262,12 @@ func (_q *OfflineSessionQuery) Clone() *OfflineSessionQuery {
 // Example:
 //
 //	var v []struct {
-//		UserID string `json:"user_id,omitempty"`
+//		RefreshTokens []byte `json:"refresh_tokens,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.OfflineSession.Query().
-//		GroupBy(offlinesession.FieldUserID).
+//		GroupBy(offlinesession.FieldRefreshTokens).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
 func (_q *OfflineSessionQuery) GroupBy(field string, fields ...string) *OfflineSessionGroupBy {
@@ -285,11 +285,11 @@ func (_q *OfflineSessionQuery) GroupBy(field string, fields ...string) *OfflineS
 // Example:
 //
 //	var v []struct {
-//		UserID string `json:"user_id,omitempty"`
+//		RefreshTokens []byte `json:"refresh_tokens,omitempty"`
 //	}
 //
 //	client.OfflineSession.Query().
-//		Select(offlinesession.FieldUserID).
+//		Select(offlinesession.FieldRefreshTokens).
 //		Scan(ctx, &v)
 func (_q *OfflineSessionQuery) Select(fields ...string) *OfflineSessionSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

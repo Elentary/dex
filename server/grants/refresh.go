@@ -185,8 +185,8 @@ func (g *refresh) sessionID(ctx context.Context, refreshToken *storage.RefreshTo
 		return "", nil
 	}
 
-	ref, ok := offlineSessions.Refresh[refreshToken.ClientID]
-	if !ok || ref.SessionID == "" {
+	ref := offlineSessions.RefreshTokenRef(refreshToken.ClientID, refreshToken.ID)
+	if ref == nil || ref.SessionID == "" {
 		// Issued outside a browser flow — the password grant, or before sessions were
 		// turned on. There is no session to be bound to, so there is none to end.
 		return "", nil

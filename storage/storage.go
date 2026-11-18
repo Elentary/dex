@@ -109,6 +109,11 @@ type Storage interface {
 
 	ListClients(ctx context.Context) ([]Client, error)
 	ListRefreshTokens(ctx context.Context) ([]RefreshToken, error)
+
+	// ListRefreshTokensPage scans at most limit rows. cursor is opaque and empty
+	// for the first page; an empty next cursor marks the end. Pages need not be
+	// a snapshot: callers must recheck rows before deleting them.
+	ListRefreshTokensPage(ctx context.Context, cursor string, limit int) (tokens []RefreshToken, next string, err error)
 	ListPasswords(ctx context.Context) ([]Password, error)
 	ListConnectors(ctx context.Context) ([]Connector, error)
 	ListUserIdentities(ctx context.Context) ([]UserIdentity, error)
@@ -184,6 +189,10 @@ type Client struct {
 	// RefreshTokenLifetime says whether this client's refresh tokens outlive the
 	// session that issued them. See the constants below; empty means Standalone.
 	RefreshTokenLifetime string `json:"refreshTokenLifetime"`
+
+	// RefreshTokenLimit enables independent standalone grants when positive.
+	// Zero preserves replacement on login. The quota is per user/connector/client.
+	RefreshTokenLimit uint32 `json:"refreshTokenLimit"`
 
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
@@ -390,10 +399,19 @@ type AuthCode struct {
 	PKCE PKCE
 }
 
+// Refresh token registration and collection states. Empty means active.
+const (
+	// Empty state is active, including tokens written before state was introduced.
+	RefreshTokenPending = "pending"
+	RefreshTokenRevoked = "revoked"
+)
+
 // RefreshToken is an OAuth2 refresh token which allows a client to request new
 // tokens on the end user's behalf.
 type RefreshToken struct {
-	ID string
+	// State makes registration and conditional garbage collection recoverable.
+	State string
+	ID    string
 
 	// A single token that's rotated every time the refresh token is refreshed.
 	//
@@ -558,6 +576,10 @@ type OfflineSessions struct {
 	// Refresh is a hash table of refresh token reference objects
 	// indexed by the ClientID of the refresh token.
 	Refresh map[string]*RefreshTokenRef
+
+	// RefreshTokens indexes independent grants by RefreshToken.ID. Refresh above
+	// remains keyed by client ID for legacy replacement and upgrade compatibility.
+	RefreshTokens map[string]*RefreshTokenRef
 
 	// Authentication data provided by an upstream source.
 	ConnectorData []byte

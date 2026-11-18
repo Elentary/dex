@@ -296,6 +296,7 @@ type Client struct {
 
 	BackchannelLogoutURI string `json:"backchannelLogoutURI,omitempty"`
 
+	RefreshTokenLimit    uint32 `json:"refreshTokenLimit,omitempty"`
 	RefreshTokenLifetime string `json:"refreshTokenLifetime,omitempty"`
 }
 
@@ -329,6 +330,7 @@ func (cli *client) fromStorageClient(c storage.Client) Client {
 		SSOSharedWith:          c.SSOSharedWith,
 		BackchannelLogoutURI:   c.BackchannelLogoutURI,
 		RefreshTokenLifetime:   c.RefreshTokenLifetime,
+		RefreshTokenLimit:      c.RefreshTokenLimit,
 	}
 }
 
@@ -347,6 +349,7 @@ func toStorageClient(c Client) storage.Client {
 		SSOSharedWith:          c.SSOSharedWith,
 		BackchannelLogoutURI:   c.BackchannelLogoutURI,
 		RefreshTokenLifetime:   c.RefreshTokenLifetime,
+		RefreshTokenLimit:      c.RefreshTokenLimit,
 	}
 }
 
@@ -641,6 +644,7 @@ func toStorageAuthCode(a AuthCode) storage.AuthCode {
 // RefreshToken is a mirrored struct from storage with JSON struct tags and
 // Kubernetes type metadata.
 type RefreshToken struct {
+	State             string `json:"state,omitempty"`
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
@@ -672,6 +676,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 		ID:            r.ObjectMeta.Name,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		State:         r.State,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -695,6 +700,7 @@ func (cli *client) fromStorageRefreshToken(r storage.RefreshToken) RefreshToken 
 		},
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		State:         r.State,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -754,6 +760,7 @@ func toStorageKeys(keys Keys) storage.Keys {
 // OfflineSessions is a mirrored struct from storage with JSON struct tags and Kubernetes
 // type metadata.
 type OfflineSessions struct {
+	RefreshTokens     map[string]*storage.RefreshTokenRef `json:"refreshTokens,omitempty"`
 	k8sapi.TypeMeta   `json:",inline"`
 	k8sapi.ObjectMeta `json:"metadata,omitempty"`
 
@@ -776,6 +783,7 @@ func (cli *client) fromStorageOfflineSessions(o storage.OfflineSessions) Offline
 		UserID:        o.UserID,
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
+		RefreshTokens: o.RefreshTokens,
 		ConnectorData: o.ConnectorData,
 	}
 }
@@ -785,6 +793,7 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		UserID:        o.UserID,
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
+		RefreshTokens: o.RefreshTokens,
 		ConnectorData: o.ConnectorData,
 	}
 	if s.Refresh == nil {

@@ -215,6 +215,9 @@ oauth2:
 #
 # If this option isn't chosen clients may be added through the gRPC API.
 staticClients:
+# Standalone clients may opt into independent grants with refreshTokenLimit: 50.
+# Omitted/0 preserves replacement on login; each device needs its own login.
+# See docs/enhancements/multiple-refresh-tokens-2026-11-18-981.md before rollout.
 - id: example-app
   redirectURIs:
   - 'http://127.0.0.1:5555/callback'

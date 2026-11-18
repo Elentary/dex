@@ -8,6 +8,7 @@ import (
 
 	"github.com/dexidp/dex/server/connectors"
 	"github.com/dexidp/dex/server/oauth2"
+	"github.com/dexidp/dex/server/tokens"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -81,6 +82,9 @@ func (g *deviceCode) Authorize(ctx context.Context, req *Request, client storage
 			return nil, &oauth2.Error{Type: oauth2.DeviceTokenSlowDown, Status: http.StatusBadRequest}
 		}
 		return nil, &oauth2.Error{Type: oauth2.DeviceTokenPending, Status: http.StatusBadRequest}
+
+	case oauth2.InvalidGrant:
+		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Status: http.StatusBadRequest, Description: tokens.ErrRefreshTokenLimit.Error()}
 
 	case oauth2.DeviceTokenComplete:
 		if oerr := verifyPKCE(req.CodeVerifier, deviceToken.PKCE); oerr != nil {

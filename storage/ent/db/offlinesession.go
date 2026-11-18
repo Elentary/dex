@@ -16,6 +16,8 @@ type OfflineSession struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID string `json:"id,omitempty"`
+	// RefreshTokens holds the value of the "refresh_tokens" field.
+	RefreshTokens []byte `json:"refresh_tokens,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID string `json:"user_id,omitempty"`
 	// ConnID holds the value of the "conn_id" field.
@@ -32,7 +34,7 @@ func (*OfflineSession) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case offlinesession.FieldRefresh, offlinesession.FieldConnectorData:
+		case offlinesession.FieldRefreshTokens, offlinesession.FieldRefresh, offlinesession.FieldConnectorData:
 			values[i] = new([]byte)
 		case offlinesession.FieldID, offlinesession.FieldUserID, offlinesession.FieldConnID:
 			values[i] = new(sql.NullString)
@@ -56,6 +58,12 @@ func (_m *OfflineSession) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				_m.ID = value.String
+			}
+		case offlinesession.FieldRefreshTokens:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field refresh_tokens", values[i])
+			} else if value != nil {
+				_m.RefreshTokens = *value
 			}
 		case offlinesession.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -117,6 +125,9 @@ func (_m *OfflineSession) String() string {
 	var builder strings.Builder
 	builder.WriteString("OfflineSession(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	builder.WriteString("refresh_tokens=")
+	builder.WriteString(fmt.Sprintf("%v", _m.RefreshTokens))
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
 	builder.WriteString(", ")

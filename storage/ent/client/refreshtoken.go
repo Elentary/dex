@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // CreateRefresh saves provided refresh token into the database.
@@ -23,6 +24,7 @@ func (d *Database) CreateRefresh(ctx context.Context, refresh storage.RefreshTok
 		SetConnectorData(refresh.ConnectorData).
 		SetToken(refresh.Token).
 		SetObsoleteToken(refresh.ObsoleteToken).
+		SetState(refresh.State).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(refresh.LastUsed.UTC()).
 		SetCreatedAt(refresh.CreatedAt.UTC()).
@@ -67,6 +69,10 @@ func (d *Database) DeleteRefresh(ctx context.Context, id string) error {
 
 // UpdateRefreshToken changes a refresh token by id using an updater function and saves it to the database.
 func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return sqlretry.Do(ctx, func() error { return d.updateRefreshToken(ctx, id, updater) })
+}
+
+func (d *Database) updateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	tx, err := d.BeginTx(ctx)
 	if err != nil {
 		return convertDBError("update refresh token tx: %w", err)
@@ -96,6 +102,7 @@ func (d *Database) UpdateRefreshToken(ctx context.Context, id string, updater fu
 		SetConnectorData(newtToken.ConnectorData).
 		SetToken(newtToken.Token).
 		SetObsoleteToken(newtToken.ObsoleteToken).
+		SetState(newtToken.State).
 		// Save utc time into database because ent doesn't support comparing dates with different timezones
 		SetLastUsed(newtToken.LastUsed.UTC()).
 		SetCreatedAt(newtToken.CreatedAt.UTC()).

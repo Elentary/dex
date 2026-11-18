@@ -29,6 +29,27 @@ func (_u *OAuth2ClientUpdate) Where(ps ...predicate.OAuth2Client) *OAuth2ClientU
 	return _u
 }
 
+// SetRefreshTokenLimit sets the "refresh_token_limit" field.
+func (_u *OAuth2ClientUpdate) SetRefreshTokenLimit(v uint32) *OAuth2ClientUpdate {
+	_u.mutation.ResetRefreshTokenLimit()
+	_u.mutation.SetRefreshTokenLimit(v)
+	return _u
+}
+
+// SetNillableRefreshTokenLimit sets the "refresh_token_limit" field if the given value is not nil.
+func (_u *OAuth2ClientUpdate) SetNillableRefreshTokenLimit(v *uint32) *OAuth2ClientUpdate {
+	if v != nil {
+		_u.SetRefreshTokenLimit(*v)
+	}
+	return _u
+}
+
+// AddRefreshTokenLimit adds value to the "refresh_token_limit" field.
+func (_u *OAuth2ClientUpdate) AddRefreshTokenLimit(v int32) *OAuth2ClientUpdate {
+	_u.mutation.AddRefreshTokenLimit(v)
+	return _u
+}
+
 // SetSecret sets the "secret" field.
 func (_u *OAuth2ClientUpdate) SetSecret(v string) *OAuth2ClientUpdate {
 	_u.mutation.SetSecret(v)
@@ -309,6 +330,12 @@ func (_u *OAuth2ClientUpdate) sqlSave(ctx context.Context) (_node int, err error
 			}
 		}
 	}
+	if value, ok := _u.mutation.RefreshTokenLimit(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLimit, field.TypeUint32, value)
+	}
+	if value, ok := _u.mutation.AddedRefreshTokenLimit(); ok {
+		_spec.AddField(oauth2client.FieldRefreshTokenLimit, field.TypeUint32, value)
+	}
 	if value, ok := _u.mutation.Secret(); ok {
 		_spec.SetField(oauth2client.FieldSecret, field.TypeString, value)
 	}
@@ -423,6 +450,27 @@ type OAuth2ClientUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *OAuth2ClientMutation
+}
+
+// SetRefreshTokenLimit sets the "refresh_token_limit" field.
+func (_u *OAuth2ClientUpdateOne) SetRefreshTokenLimit(v uint32) *OAuth2ClientUpdateOne {
+	_u.mutation.ResetRefreshTokenLimit()
+	_u.mutation.SetRefreshTokenLimit(v)
+	return _u
+}
+
+// SetNillableRefreshTokenLimit sets the "refresh_token_limit" field if the given value is not nil.
+func (_u *OAuth2ClientUpdateOne) SetNillableRefreshTokenLimit(v *uint32) *OAuth2ClientUpdateOne {
+	if v != nil {
+		_u.SetRefreshTokenLimit(*v)
+	}
+	return _u
+}
+
+// AddRefreshTokenLimit adds value to the "refresh_token_limit" field.
+func (_u *OAuth2ClientUpdateOne) AddRefreshTokenLimit(v int32) *OAuth2ClientUpdateOne {
+	_u.mutation.AddRefreshTokenLimit(v)
+	return _u
 }
 
 // SetSecret sets the "secret" field.
@@ -734,6 +782,12 @@ func (_u *OAuth2ClientUpdateOne) sqlSave(ctx context.Context) (_node *OAuth2Clie
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.RefreshTokenLimit(); ok {
+		_spec.SetField(oauth2client.FieldRefreshTokenLimit, field.TypeUint32, value)
+	}
+	if value, ok := _u.mutation.AddedRefreshTokenLimit(); ok {
+		_spec.AddField(oauth2client.FieldRefreshTokenLimit, field.TypeUint32, value)
 	}
 	if value, ok := _u.mutation.Secret(); ok {
 		_spec.SetField(oauth2client.FieldSecret, field.TypeString, value)

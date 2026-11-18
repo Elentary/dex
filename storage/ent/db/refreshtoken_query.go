@@ -262,12 +262,12 @@ func (_q *RefreshTokenQuery) Clone() *RefreshTokenQuery {
 // Example:
 //
 //	var v []struct {
-//		ClientID string `json:"client_id,omitempty"`
+//		State string `json:"state,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.RefreshToken.Query().
-//		GroupBy(refreshtoken.FieldClientID).
+//		GroupBy(refreshtoken.FieldState).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
 func (_q *RefreshTokenQuery) GroupBy(field string, fields ...string) *RefreshTokenGroupBy {
@@ -285,11 +285,11 @@ func (_q *RefreshTokenQuery) GroupBy(field string, fields ...string) *RefreshTok
 // Example:
 //
 //	var v []struct {
-//		ClientID string `json:"client_id,omitempty"`
+//		State string `json:"state,omitempty"`
 //	}
 //
 //	client.RefreshToken.Query().
-//		Select(refreshtoken.FieldClientID).
+//		Select(refreshtoken.FieldState).
 //		Scan(ctx, &v)
 func (_q *RefreshTokenQuery) Select(fields ...string) *RefreshTokenSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

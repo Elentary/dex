@@ -27,6 +27,18 @@ func (_u *OfflineSessionUpdate) Where(ps ...predicate.OfflineSession) *OfflineSe
 	return _u
 }
 
+// SetRefreshTokens sets the "refresh_tokens" field.
+func (_u *OfflineSessionUpdate) SetRefreshTokens(v []byte) *OfflineSessionUpdate {
+	_u.mutation.SetRefreshTokens(v)
+	return _u
+}
+
+// ClearRefreshTokens clears the value of the "refresh_tokens" field.
+func (_u *OfflineSessionUpdate) ClearRefreshTokens() *OfflineSessionUpdate {
+	_u.mutation.ClearRefreshTokens()
+	return _u
+}
+
 // SetUserID sets the "user_id" field.
 func (_u *OfflineSessionUpdate) SetUserID(v string) *OfflineSessionUpdate {
 	_u.mutation.SetUserID(v)
@@ -132,6 +144,12 @@ func (_u *OfflineSessionUpdate) sqlSave(ctx context.Context) (_node int, err err
 			}
 		}
 	}
+	if value, ok := _u.mutation.RefreshTokens(); ok {
+		_spec.SetField(offlinesession.FieldRefreshTokens, field.TypeBytes, value)
+	}
+	if _u.mutation.RefreshTokensCleared() {
+		_spec.ClearField(offlinesession.FieldRefreshTokens, field.TypeBytes)
+	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)
 	}
@@ -165,6 +183,18 @@ type OfflineSessionUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *OfflineSessionMutation
+}
+
+// SetRefreshTokens sets the "refresh_tokens" field.
+func (_u *OfflineSessionUpdateOne) SetRefreshTokens(v []byte) *OfflineSessionUpdateOne {
+	_u.mutation.SetRefreshTokens(v)
+	return _u
+}
+
+// ClearRefreshTokens clears the value of the "refresh_tokens" field.
+func (_u *OfflineSessionUpdateOne) ClearRefreshTokens() *OfflineSessionUpdateOne {
+	_u.mutation.ClearRefreshTokens()
+	return _u
 }
 
 // SetUserID sets the "user_id" field.
@@ -301,6 +331,12 @@ func (_u *OfflineSessionUpdateOne) sqlSave(ctx context.Context) (_node *OfflineS
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.RefreshTokens(); ok {
+		_spec.SetField(offlinesession.FieldRefreshTokens, field.TypeBytes, value)
+	}
+	if _u.mutation.RefreshTokensCleared() {
+		_spec.ClearField(offlinesession.FieldRefreshTokens, field.TypeBytes)
 	}
 	if value, ok := _u.mutation.UserID(); ok {
 		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)

@@ -30,7 +30,7 @@ type Issuer struct {
 }
 
 // NewIssuer wires an issuer from the shared dependencies.
-func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, now func() time.Time, logger *slog.Logger) *Issuer {
+func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, idTokensValidFor time.Duration, now func() time.Time, logger *slog.Logger, policy ...*RefreshStrategy) *Issuer {
 	return &Issuer{
 		storage:          storage,
 		signer:           sig,
@@ -38,7 +38,7 @@ func NewIssuer(storage storage.Storage, sig signer.Signer, issuerURL url.URL, id
 		idTokensValidFor: idTokensValidFor,
 		now:              now,
 		logger:           logger,
-		Refresh:          NewRefreshStore(storage, now, logger),
+		Refresh:          NewRefreshStore(storage, now, logger, policy...),
 	}
 }
 
