@@ -47,7 +47,7 @@ func (rt *RefreshStore) prune(ctx context.Context, userID, connectorID, clientID
 			return err
 		}
 		if rt.expired(row) {
-			if err := rt.collect(ctx, row); err != nil {
+			if err := rt.collect(ctx, row, false); err != nil {
 				return err
 			}
 		}
@@ -69,11 +69,15 @@ func (rt *RefreshStore) detach(ctx context.Context, userID, connectorID, clientI
 // collect first tombstones the live row atomically. In particular, a LastUsed
 // copied from the offline-session index is never evidence of expiry: rotation
 // may already have advanced the row while that index is still being updated.
-func (rt *RefreshStore) collect(ctx context.Context, snapshot storage.RefreshToken) error {
+func (rt *RefreshStore) collect(ctx context.Context, snapshot storage.RefreshToken, orphan bool) error {
 	tombstoned := false
 	err := rt.storage.UpdateRefreshToken(ctx, snapshot.ID, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		tombstoned = false
-		if !rt.expired(old) {
+		// Only independent grants have monotonic index membership after activation.
+		// A missing legacy reference may still be registered by an old replica or
+		// restored by rollback. Absence alone cannot authorize deleting that row.
+		abandoned := orphan && old.State == storage.RefreshTokenActive && snapshot.State == storage.RefreshTokenActive && old.Token == snapshot.Token && old.LastUsed.Equal(snapshot.LastUsed)
+		if !abandoned && !rt.expired(old) {
 			return old, nil
 		}
 		old.State = storage.RefreshTokenRevoked
