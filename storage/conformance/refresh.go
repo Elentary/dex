@@ -4,46 +4,11 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexidp/dex/storage"
 )
-
-func testRefreshTokenPages(t *testing.T, s storage.Storage) {
-	ctx := t.Context()
-	want := map[string]bool{}
-	for i := 0; i < 7; i++ {
-		id := storage.NewID()
-		want[id] = true
-		require.NoError(t, s.CreateRefresh(ctx, storage.RefreshToken{ID: id, ClientID: "client", ConnectorID: "connector", Nonce: "nonce", Token: "secret", State: storage.RefreshTokenPending, CreatedAt: time.Now(), LastUsed: time.Now(), Claims: storage.Claims{UserID: "user", Username: "user", Email: "user@example.com"}}))
-	}
-	seen := map[string]bool{}
-	cursor := ""
-	for page := 0; ; page++ {
-		require.Less(t, page, 20, "cursor must make progress")
-		rows, next, err := s.ListRefreshTokensPage(ctx, cursor, 2)
-		require.NoError(t, err)
-		require.LessOrEqual(t, len(rows), 2)
-		for _, row := range rows {
-			require.False(t, seen[row.ID], "duplicate across pages")
-			seen[row.ID] = true
-			if want[row.ID] {
-				require.Equal(t, storage.RefreshTokenPending, row.State)
-				require.NoError(t, s.DeleteRefresh(ctx, row.ID)) // deletion must not shift the next page
-			}
-		}
-		if next == "" {
-			break
-		}
-		require.NotEqual(t, cursor, next)
-		cursor = next
-	}
-	for id := range want {
-		require.True(t, seen[id])
-	}
-}
 
 func testIndependentRefreshAdmission(t *testing.T, s storage.Storage) {
 	ctx := t.Context()

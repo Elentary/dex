@@ -68,7 +68,6 @@ func TestIndependentRefreshGrants(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, session.RefreshTokens, 2)
 	require.Len(t, session.Refresh, 1)
-	require.NoError(t, rt.GarbageCollect(ctx))
 	for _, ref := range session.RefreshTokens {
 		row, err := s.GetRefresh(ctx, ref.ID)
 		require.NoError(t, err)
@@ -165,16 +164,14 @@ func (s *issuanceFailureStorage) DeleteRefresh(ctx context.Context, id string) e
 	return s.Storage.DeleteRefresh(ctx, id)
 }
 
-func TestIndependentFailedIssuanceRecovery(t *testing.T) {
+func TestIndependentFailedIssuanceIsInactive(t *testing.T) {
 	for _, register := range []bool{false, true} {
 		t.Run(map[bool]string{true: "registration", false: "activation"}[register], func(t *testing.T) {
 			ctx := t.Context()
 			logger := slog.New(slog.DiscardHandler)
 			base := memory.New(logger)
 			s := &issuanceFailureStorage{Storage: base, failRegister: register, failActivate: !register, failDelete: true}
-			now := time.Now()
-			clock := func() time.Time { return now }
-			rt := NewRefreshStore(s, clock, logger)
+			rt := NewRefreshStore(s, time.Now, logger)
 			auth := testAuthorization()
 			auth.Client.RefreshTokenLimit = 1
 			_, err := rt.Create(ctx, auth)
@@ -185,20 +182,29 @@ func TestIndependentFailedIssuanceRecovery(t *testing.T) {
 			row := rows[0]
 			_, err = LookupRefreshToken(ctx, base, rt.strategy, logger, nil, &internal.RefreshToken{RefreshId: row.ID, Token: row.Token})
 			require.ErrorIs(t, err, ErrRefreshTokenInvalid)
-			// Restart after the lease expires, with the storage healthy again.
-			now = now.Add(2 * refreshRegistrationTimeout)
-			restarted := NewRefreshStore(base, clock, logger)
-			require.NoError(t, restarted.GarbageCollect(ctx))
-			rows, err = base.ListRefreshTokens(ctx)
-			require.NoError(t, err)
-			require.Empty(t, rows)
+			// The abandoned row does not consume quota once storage recovers.
+			restarted := NewRefreshStore(base, time.Now, logger)
 			_, err = restarted.Create(ctx, auth)
 			require.NoError(t, err)
 		})
 	}
 }
 
-func TestRefreshGCDoesNotDeleteAdvancedRow(t *testing.T) {
+func TestLegacyRollbackPreservesTokenAfterActivationFailure(t *testing.T) {
+	ctx := t.Context()
+	rt, s := newTestStore(t)
+	auth := testAuthorization()
+	first, err := rt.Create(ctx, auth)
+	require.NoError(t, err)
+	previous := decodeRefresh(t, first)
+	replacement := NewRefreshStore(&issuanceFailureStorage{Storage: s, failActivate: true}, rt.now, rt.logger)
+	_, err = replacement.Create(ctx, auth)
+	require.ErrorIs(t, err, errIssuance)
+	_, err = LookupRefreshToken(ctx, s, rt.strategy, rt.logger, nil, previous)
+	require.NoError(t, err, "rollback must restore a working credential, not only its reference")
+}
+
+func TestRefreshPruneDoesNotDeleteAdvancedRow(t *testing.T) {
 	ctx := t.Context()
 	rt, s := newTestStore(t)
 	now := time.Now()
@@ -214,7 +220,7 @@ func TestRefreshGCDoesNotDeleteAdvancedRow(t *testing.T) {
 	now = now.Add(2 * time.Hour)
 	// Simulate a refresh whose row committed before its offline-session update.
 	require.NoError(t, s.UpdateRefreshToken(ctx, token.RefreshId, func(row storage.RefreshToken) (storage.RefreshToken, error) { row.LastUsed = now; return row, nil }))
-	require.NoError(t, rt.collect(ctx, stale, false))
+	require.NoError(t, rt.collect(ctx, stale))
 	_, err = s.GetRefresh(ctx, token.RefreshId)
 	require.NoError(t, err)
 	_, err = rt.Create(ctx, auth)
@@ -240,9 +246,6 @@ func TestRefreshOrphanAndRevokeFailureAreInactive(t *testing.T) {
 	_, err = LookupRefreshToken(ctx, s, rt.strategy, rt.logger, nil, decodeRefresh(t, second))
 	require.NoError(t, err)
 	rt.storage = s
-	require.NoError(t, rt.GarbageCollect(ctx))
-	_, err = s.GetRefresh(ctx, one.RefreshId)
-	require.ErrorIs(t, err, storage.ErrNotFound)
 	_, err = rt.Create(ctx, auth)
 	require.NoError(t, err)
 }
@@ -274,7 +277,7 @@ func awaitRefreshStep(t *testing.T, step <-chan struct{}) {
 	}
 }
 
-func TestPendingIssuanceCannotReviveAfterGC(t *testing.T) {
+func TestPendingIssuanceCannotReviveAfterPrune(t *testing.T) {
 	ctx := t.Context()
 	rt, base := newTestStore(t)
 	now := time.Now()
@@ -287,7 +290,7 @@ func TestPendingIssuanceCannotReviveAfterGC(t *testing.T) {
 	go func() { _, err := rt.Create(ctx, auth); result <- err }()
 	awaitRefreshStep(t, paused.entered)
 	collector := NewRefreshStore(base, func() time.Time { return now.Add(2 * refreshRegistrationTimeout) }, rt.logger)
-	require.NoError(t, collector.GarbageCollect(ctx))
+	require.NoError(t, collector.prune(ctx, auth.Claims.UserID, auth.ConnectorID, auth.Client.ID))
 	close(paused.resume)
 	require.Error(t, <-result)
 	rows, err := base.ListRefreshTokens(ctx)

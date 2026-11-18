@@ -143,24 +143,24 @@ pre-upgrade rows. Both are accepted by lookup and rotation. The explicit `active
 marker identifies grants whose references can only be removed after activation,
 never restored by a failed replacement. Neither pending nor revoked rows are
 accepted. Refresh and introspection also require exact index membership, so
-an orphan row is not a usable credential. Failed registration/activation rolls
-back its reference and row; failed deletion is recoverable. An interrupted
-pending issuance has a five-minute lease and can then be collected. A process
-resuming after collection cannot activate a deleted/tombstoned row.
+an orphan row is not a usable credential. Failed registration/activation attempts
+to roll back its reference and row. An interrupted pending issuance has a
+five-minute lease; its indexed row can then be removed during the next admission.
+A process resuming after cleanup cannot activate a deleted/tombstoned row.
 
 Expiration is checked on the canonical row in an atomic updater before marking
 it `revoked`, removing its reference, and deleting it. The potentially stale
 `LastUsed` in the index is never sufficient to expire a token. Rotation cannot
-revive a tombstoned row. A paged background sweep (100 rows per page) cleans up
-expired rows, abandoned pending registrations and orphan independent grants;
-admission checks only the user's indexed grants. An unexpired legacy row is never
-collected solely because its reference is absent: an old replica may still be
-registering it, or rollback may restore its reference. The sweep skips membership
-reads for those rows. A legacy orphan with no configured expiry can therefore
-remain stored after a failed deletion, but cannot authenticate without membership.
-SQL/ent use ordered key pagination, etcd uses a bounded key range, and
-Kubernetes follows continuation tokens without reusing a resource version.
-Orphan references to already missing rows are repaired on the next admission.
+revive a tombstoned row. Before issuing an independent grant, admission checks
+only this user's indexed grants for the client, removing expired or abandoned
+rows and repairing references to already missing rows. This reclaims quota
+without scanning the global token table.
+
+There is no background refresh-token sweep in this change. Rows left without
+references after a crash or failed deletion can remain stored indefinitely;
+they cannot authenticate and do not count against the quota. Indexed expired or
+abandoned rows are cleaned on the next admission, so an unused account may retain
+them. Background cleanup is a separate follow-up.
 
 SQL migrations append `client.refresh_token_limit` (default 0), nullable
 `offline_session.refresh_tokens`, and `refresh_token.state` (default empty).
@@ -218,12 +218,13 @@ session-bound lifetime; they do not distinguish multiple standalone grants.
 The regression suite covers independent rotations, unchanged subjects, quota
 rejection without partial credentials, same-browser origin, first-login races
 across store instances, lowered/disabled limits, expiry and stale-index cleanup,
-interrupted issuance/restart, failed deletion and orphan rejection, API ownership
-and optional-field compatibility, and standalone grants surviving browser logout.
+interrupted issuance and local cleanup, failed deletion and orphan rejection,
+API ownership and optional-field compatibility, and standalone grants surviving
+browser logout.
 HTTP tests exercise authorization code, password and device flows with a
-reproducible mock connector. Storage conformance covers round trips, paging while
-deleting, transaction rollback and concurrent admission; the migration test
-loads the pre-change SQL schema and credentials before upgrading.
+reproducible mock connector. Storage conformance covers round trips, transaction
+rollback and concurrent admission; the migration test loads the pre-change SQL
+schema and credentials before upgrading.
 
 Run `make testall`, `make lint`, `make verify` and `make build` with Go 1.27.
 Configure the repository's `DEX_*` integration-test environment variables for

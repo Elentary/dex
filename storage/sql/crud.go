@@ -436,42 +436,6 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 	return tokens, nil
 }
 
-func (c *conn) ListRefreshTokensPage(ctx context.Context, cursor string, limit int) ([]storage.RefreshToken, string, error) {
-	if limit < 1 {
-		return nil, "", fmt.Errorf("refresh page limit must be positive")
-	}
-	rows, err := c.Query(`
-		select
-			id, client_id, scopes, nonce,
-			claims_user_id, claims_username, claims_preferred_username,
-			claims_email, claims_email_verified, claims_groups,
-			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used, state
-		from refresh_token where id > $1 order by id limit $2;
-	`, cursor, limit)
-	if err != nil {
-		return nil, "", fmt.Errorf("query: %v", err)
-	}
-	defer rows.Close()
-
-	var tokens []storage.RefreshToken
-	for rows.Next() {
-		r, err := scanRefresh(rows)
-		if err != nil {
-			return nil, "", err
-		}
-		tokens = append(tokens, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, "", fmt.Errorf("scan: %v", err)
-	}
-	next := ""
-	if len(tokens) == limit {
-		next = tokens[len(tokens)-1].ID
-	}
-	return tokens, next, nil
-}
-
 func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 	err = s.Scan(
 		&r.ID, &r.ClientID, decoder(&r.Scopes), &r.Nonce,

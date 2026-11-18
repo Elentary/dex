@@ -49,7 +49,6 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"AuthRequestCRUD", testAuthRequestCRUD},
 		{"ClientCRUD", testClientCRUD},
 		{"RefreshTokenCRUD", testRefreshTokenCRUD},
-		{"RefreshTokenPages", testRefreshTokenPages},
 		{"IndependentRefreshAdmission", testIndependentRefreshAdmission},
 		{"PasswordCRUD", testPasswordCRUD},
 		{"KeysCRUD", testKeysCRUD},

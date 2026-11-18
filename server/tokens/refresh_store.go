@@ -101,7 +101,7 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 		}
 	}
 	if err == nil {
-		// GC may have abandoned a slow/crashed issuance. Only a still-pending row
+		// Cleanup may have abandoned a slow/crashed issuance. Only a still-pending row
 		// can become usable; a tombstoned/deleted row must never be resurrected.
 		err = rt.storage.UpdateRefreshToken(ctx, refresh.ID, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 			if old.State != storage.RefreshTokenPending {
@@ -120,8 +120,8 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 	}
 	if replaced != nil {
 		if err := rt.storage.DeleteRefresh(ctx, replaced.ID); err != nil && !errors.Is(err, storage.ErrNotFound) {
-			// Membership already changed atomically: the old row is unusable and
-			// the paged sweep can finish deleting it after a storage failure.
+			// Membership already changed atomically: the old row is unusable even
+			// if a storage failure prevents its deletion.
 			rt.logger.ErrorContext(ctx, "delete replaced refresh token", "err", err)
 		}
 	}

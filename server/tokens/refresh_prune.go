@@ -8,7 +8,7 @@ import (
 	"github.com/dexidp/dex/storage"
 )
 
-// A registration interrupted for this long is abandoned. Activation and GC
+// A registration interrupted for this long is abandoned. Activation and cleanup
 // compete on the row's state, so even a paused process cannot revive it later.
 const refreshRegistrationTimeout = 5 * time.Minute
 
@@ -47,7 +47,7 @@ func (rt *RefreshStore) prune(ctx context.Context, userID, connectorID, clientID
 			return err
 		}
 		if rt.expired(row) {
-			if err := rt.collect(ctx, row, false); err != nil {
+			if err := rt.collect(ctx, row); err != nil {
 				return err
 			}
 		}
@@ -69,15 +69,11 @@ func (rt *RefreshStore) detach(ctx context.Context, userID, connectorID, clientI
 // collect first tombstones the live row atomically. In particular, a LastUsed
 // copied from the offline-session index is never evidence of expiry: rotation
 // may already have advanced the row while that index is still being updated.
-func (rt *RefreshStore) collect(ctx context.Context, snapshot storage.RefreshToken, orphan bool) error {
+func (rt *RefreshStore) collect(ctx context.Context, snapshot storage.RefreshToken) error {
 	tombstoned := false
 	err := rt.storage.UpdateRefreshToken(ctx, snapshot.ID, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		tombstoned = false
-		// Only independent grants have monotonic index membership after activation.
-		// A missing legacy reference may still be registered by an old replica or
-		// restored by rollback. Absence alone cannot authorize deleting that row.
-		abandoned := orphan && old.State == storage.RefreshTokenActive && snapshot.State == storage.RefreshTokenActive && old.Token == snapshot.Token && old.LastUsed.Equal(snapshot.LastUsed)
-		if !abandoned && !rt.expired(old) {
+		if !rt.expired(old) {
 			return old, nil
 		}
 		old.State = storage.RefreshTokenRevoked
@@ -99,45 +95,4 @@ func (rt *RefreshStore) collect(ctx context.Context, snapshot storage.RefreshTok
 		return nil
 	}
 	return err
-}
-
-// GarbageCollect sweeps bounded pages. It is safe to run on multiple replicas;
-// every deletion rechecks the current row in an atomic updater. Missing rows
-// and indexes after a crash or partial write are harmless to token validation.
-func (rt *RefreshStore) GarbageCollect(ctx context.Context) error {
-	cursor := ""
-	for {
-		rows, next, err := rt.storage.ListRefreshTokensPage(ctx, cursor, 100)
-		if err != nil {
-			return err
-		}
-		for _, row := range rows {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			orphan := false
-			if !rt.expired(row) {
-				// Legacy rows and pending registrations cannot be identified as
-				// abandoned from the index. Avoid a membership read for them.
-				if row.State != storage.RefreshTokenActive {
-					continue
-				}
-				session, err := rt.storage.GetOfflineSessions(ctx, row.Claims.UserID, row.ConnectorID)
-				if err != nil && !errors.Is(err, storage.ErrNotFound) {
-					return err
-				}
-				orphan = errors.Is(err, storage.ErrNotFound) || session.RefreshTokenRef(row.ClientID, row.ID) == nil
-				if !orphan {
-					continue
-				}
-			}
-			if err := rt.collect(ctx, row, orphan); err != nil {
-				return err
-			}
-		}
-		if next == "" {
-			return nil
-		}
-		cursor = next
-	}
 }
