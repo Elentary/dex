@@ -385,6 +385,9 @@ func (s *Server) startGarbageCollection(ctx context.Context, frequency time.Dura
 			case <-ctx.Done():
 				return
 			case <-time.After(frequency):
+				if err := s.issuer.Refresh.GarbageCollect(ctx); err != nil {
+					s.logger.ErrorContext(ctx, "refresh garbage collection failed", "err", err)
+				}
 				if r, err := s.storage.GarbageCollect(ctx, now()); err != nil {
 					s.logger.ErrorContext(ctx, "garbage collection failed", "err", err)
 				} else if !r.IsEmpty() {

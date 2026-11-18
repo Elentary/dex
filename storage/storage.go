@@ -109,6 +109,11 @@ type Storage interface {
 
 	ListClients(ctx context.Context) ([]Client, error)
 	ListRefreshTokens(ctx context.Context) ([]RefreshToken, error)
+
+	// ListRefreshTokensPage scans at most limit rows. cursor is opaque and empty
+	// for the first page; an empty next cursor marks the end. Pages need not be
+	// a snapshot: callers must recheck rows before deleting them.
+	ListRefreshTokensPage(ctx context.Context, cursor string, limit int) (tokens []RefreshToken, next string, err error)
 	ListPasswords(ctx context.Context) ([]Password, error)
 	ListConnectors(ctx context.Context) ([]Connector, error)
 	ListUserIdentities(ctx context.Context) ([]UserIdentity, error)

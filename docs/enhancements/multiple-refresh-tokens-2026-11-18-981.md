@@ -156,16 +156,26 @@ only this user's indexed grants for the client, removing expired or abandoned
 rows and repairing references to already missing rows. This reclaims quota
 without scanning the global token table.
 
-There is no background refresh-token sweep in this change. Rows left without
-references after a crash or failed deletion can remain stored indefinitely;
-they cannot authenticate and do not count against the quota. Indexed expired or
-abandoned rows are cleaned on the next admission, so an unused account may retain
-them. Background cleanup is a separate follow-up.
-
 SQL migrations append `client.refresh_token_limit` (default 0), nullable
 `offline_session.refresh_tokens`, and `refresh_token.state` (default empty).
 Ent schemas and generated bindings, Kubernetes JSON and etcd JSON carry the same
 fields. Existing IDs, secrets and references are not rewritten.
+
+### Background cleanup
+
+A separate follow-up adds a paged background sweep (100 rows per page) to clean
+up expired rows, abandoned pending registrations and orphan independent grants,
+including rows no longer reachable through the user's index. It reuses the
+conditional deletion above and runs safely on multiple replicas. SQL/ent use
+ordered key pagination, etcd uses a bounded key range, and Kubernetes follows
+continuation tokens without reusing a resource version.
+
+An unexpired legacy row is never collected solely because its reference is
+absent: an old replica may still be registering it, or rollback may restore its
+reference. The sweep skips membership reads for those rows. A legacy orphan
+with no configured expiry can therefore remain stored after a failed deletion,
+but cannot authenticate without membership. The sweep does not change quota
+admission, token validity or the existing refresh-token lifetime configuration.
 
 ### Rollout, compatibility and rollback
 
@@ -225,6 +235,10 @@ HTTP tests exercise authorization code, password and device flows with a
 reproducible mock connector. Storage conformance covers round trips, transaction
 rollback and concurrent admission; the migration test loads the pre-change SQL
 schema and credentials before upgrading.
+
+The background-cleanup follow-up also tests paging while deleting, interrupted
+issuance/restart, paused activation racing collection, legacy issuance and
+replacement rollback during a sweep, and collection of expired legacy rows.
 
 Run `make testall`, `make lint`, `make verify` and `make build` with Go 1.27.
 Configure the repository's `DEX_*` integration-test environment variables for

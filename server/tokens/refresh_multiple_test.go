@@ -68,6 +68,7 @@ func TestIndependentRefreshGrants(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, session.RefreshTokens, 2)
 	require.Len(t, session.Refresh, 1)
+	require.NoError(t, rt.GarbageCollect(ctx))
 	for _, ref := range session.RefreshTokens {
 		row, err := s.GetRefresh(ctx, ref.ID)
 		require.NoError(t, err)
@@ -220,7 +221,7 @@ func TestRefreshPruneDoesNotDeleteAdvancedRow(t *testing.T) {
 	now = now.Add(2 * time.Hour)
 	// Simulate a refresh whose row committed before its offline-session update.
 	require.NoError(t, s.UpdateRefreshToken(ctx, token.RefreshId, func(row storage.RefreshToken) (storage.RefreshToken, error) { row.LastUsed = now; return row, nil }))
-	require.NoError(t, rt.collect(ctx, stale))
+	require.NoError(t, rt.collect(ctx, stale, false))
 	_, err = s.GetRefresh(ctx, token.RefreshId)
 	require.NoError(t, err)
 	_, err = rt.Create(ctx, auth)
@@ -246,6 +247,9 @@ func TestRefreshOrphanAndRevokeFailureAreInactive(t *testing.T) {
 	_, err = LookupRefreshToken(ctx, s, rt.strategy, rt.logger, nil, decodeRefresh(t, second))
 	require.NoError(t, err)
 	rt.storage = s
+	require.NoError(t, rt.GarbageCollect(ctx))
+	_, err = s.GetRefresh(ctx, one.RefreshId)
+	require.ErrorIs(t, err, storage.ErrNotFound)
 	_, err = rt.Create(ctx, auth)
 	require.NoError(t, err)
 }
