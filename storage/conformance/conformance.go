@@ -529,7 +529,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	updatedAt := time.Now().UTC().Round(time.Millisecond)
 
 	updater := func(r storage.RefreshToken) (storage.RefreshToken, error) {
-		r.State = ""
+		r.State = storage.RefreshTokenActive
 		r.Token = "spam"
 		r.LastUsed = updatedAt
 		return r, nil
@@ -537,7 +537,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	if err := s.UpdateRefreshToken(ctx, id, updater); err != nil {
 		t.Errorf("failed to update refresh token: %v", err)
 	}
-	refresh.State = ""
+	refresh.State = storage.RefreshTokenActive
 	refresh.Token = "spam"
 	refresh.LastUsed = updatedAt
 	getAndCompare(id, refresh)

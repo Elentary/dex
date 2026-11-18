@@ -399,9 +399,13 @@ type AuthCode struct {
 	PKCE PKCE
 }
 
-// Refresh token registration and collection states. Empty means active.
+// Refresh token registration and collection states. Empty means active legacy.
 const (
-	// Empty state is active, including tokens written before state was introduced.
+	// RefreshTokenActive marks an activated independent grant. Its reference is
+	// never restored after removal, so GC may collect an orphan with this state.
+	// Empty-state legacy grants have no such guarantee: an older issuer may still
+	// be registering one, or a failed replacement may restore its reference.
+	RefreshTokenActive  = "active"
 	RefreshTokenPending = "pending"
 	RefreshTokenRevoked = "revoked"
 )

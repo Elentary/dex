@@ -39,7 +39,7 @@ func LookupRefreshToken(ctx context.Context, s storage.Storage, strategy *Refres
 		return nil, ErrRefreshTokenInvalid
 	}
 
-	if refresh.State != "" {
+	if !refresh.IsActive() {
 		return nil, ErrRefreshTokenInvalid
 	}
 	session, err := s.GetOfflineSessions(ctx, refresh.Claims.UserID, refresh.ConnectorID)

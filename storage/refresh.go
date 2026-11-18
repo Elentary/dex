@@ -2,6 +2,12 @@ package storage
 
 import "fmt"
 
+// IsActive accepts both legacy and independently issued grants. Registration
+// and revocation states must never be accepted by lookup or rotation.
+func (r RefreshToken) IsActive() bool {
+	return r.State == "" || r.State == RefreshTokenActive
+}
+
 // ValidateRefreshTokenPolicy validates the complete client policy, including
 // partial API updates applied to the existing client.
 func (c Client) ValidateRefreshTokenPolicy() error {

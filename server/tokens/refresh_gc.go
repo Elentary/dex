@@ -73,7 +73,10 @@ func (rt *RefreshStore) collect(ctx context.Context, snapshot storage.RefreshTok
 	tombstoned := false
 	err := rt.storage.UpdateRefreshToken(ctx, snapshot.ID, func(old storage.RefreshToken) (storage.RefreshToken, error) {
 		tombstoned = false
-		abandoned := orphan && old.State == "" && snapshot.State == "" && old.Token == snapshot.Token && old.LastUsed.Equal(snapshot.LastUsed)
+		// Only independent grants have monotonic index membership after activation.
+		// A missing legacy reference may still be registered by an old replica or
+		// restored by rollback. Absence alone cannot authorize deleting that row.
+		abandoned := orphan && old.State == storage.RefreshTokenActive && snapshot.State == storage.RefreshTokenActive && old.Token == snapshot.Token && old.LastUsed.Equal(snapshot.LastUsed)
 		if !abandoned && !rt.expired(old) {
 			return old, nil
 		}
@@ -112,16 +115,24 @@ func (rt *RefreshStore) GarbageCollect(ctx context.Context) error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			session, err := rt.storage.GetOfflineSessions(ctx, row.Claims.UserID, row.ConnectorID)
-			if err != nil && !errors.Is(err, storage.ErrNotFound) {
-				return err
-			}
-			orphan := errors.Is(err, storage.ErrNotFound) || session.RefreshTokenRef(row.ClientID, row.ID) == nil
-			// Pending rows have a lease: an issuer may still be registering them.
-			if rt.expired(row) || (orphan && row.State == "") {
-				if err := rt.collect(ctx, row, orphan); err != nil {
+			orphan := false
+			if !rt.expired(row) {
+				// Legacy rows and pending registrations cannot be identified as
+				// abandoned from the index. Avoid a membership read for them.
+				if row.State != storage.RefreshTokenActive {
+					continue
+				}
+				session, err := rt.storage.GetOfflineSessions(ctx, row.Claims.UserID, row.ConnectorID)
+				if err != nil && !errors.Is(err, storage.ErrNotFound) {
 					return err
 				}
+				orphan = errors.Is(err, storage.ErrNotFound) || session.RefreshTokenRef(row.ClientID, row.ID) == nil
+				if !orphan {
+					continue
+				}
+			}
+			if err := rt.collect(ctx, row, orphan); err != nil {
+				return err
 			}
 		}
 		if next == "" {

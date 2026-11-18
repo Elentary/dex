@@ -137,9 +137,12 @@ uses resource-version CAS, etcd retries CAS, and SQL/ent use serializable
 transactions with bounded, jittered retries for known conflicts. No updater calls
 storage or an upstream connector from inside a transaction.
 
-Issuance first stores a `pending` row, then registers it, then activates it. Empty
-state means active, including pre-upgrade rows. Neither pending nor revoked rows
-are accepted. Refresh and introspection also require exact index membership, so
+Issuance first stores a `pending` row, then registers it, then activates it.
+Independent grants become `active`; legacy grants retain the empty state used by
+pre-upgrade rows. Both are accepted by lookup and rotation. The explicit `active`
+marker identifies grants whose references can only be removed after activation,
+never restored by a failed replacement. Neither pending nor revoked rows are
+accepted. Refresh and introspection also require exact index membership, so
 an orphan row is not a usable credential. Failed registration/activation rolls
 back its reference and row; failed deletion is recoverable. An interrupted
 pending issuance has a five-minute lease and can then be collected. A process
@@ -149,8 +152,13 @@ Expiration is checked on the canonical row in an atomic updater before marking
 it `revoked`, removing its reference, and deleting it. The potentially stale
 `LastUsed` in the index is never sufficient to expire a token. Rotation cannot
 revive a tombstoned row. A paged background sweep (100 rows per page) cleans up
-expired, abandoned and orphan rows; admission checks only the user's indexed
-grants. SQL/ent use ordered key pagination, etcd uses a bounded key range, and
+expired rows, abandoned pending registrations and orphan independent grants;
+admission checks only the user's indexed grants. An unexpired legacy row is never
+collected solely because its reference is absent: an old replica may still be
+registering it, or rollback may restore its reference. The sweep skips membership
+reads for those rows. A legacy orphan with no configured expiry can therefore
+remain stored after a failed deletion, but cannot authenticate without membership.
+SQL/ent use ordered key pagination, etcd uses a bounded key range, and
 Kubernetes follows continuation tokens without reusing a resource version.
 Orphan references to already missing rows are repaired on the next admission.
 

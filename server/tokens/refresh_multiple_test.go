@@ -41,6 +41,7 @@ func TestIndependentRefreshGrants(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			row, err := LookupRefreshToken(ctx, s, strategy, rt.logger, &auth.Client.ID, token)
 			require.NoError(t, err)
+			require.Equal(t, storage.RefreshTokenActive, row.State, "rotation preserves the independent-grant marker")
 			require.Equal(t, auth.Claims, row.Claims)
 			rotated, ident, err := rt.Rotate(ctx, row, token, strategy, func(context.Context) (connector.Identity, error) { return IdentityFromClaims(auth.Claims), nil })
 			require.NoError(t, err)
@@ -67,6 +68,12 @@ func TestIndependentRefreshGrants(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, session.RefreshTokens, 2)
 	require.Len(t, session.Refresh, 1)
+	require.NoError(t, rt.GarbageCollect(ctx))
+	for _, ref := range session.RefreshTokens {
+		row, err := s.GetRefresh(ctx, ref.ID)
+		require.NoError(t, err)
+		require.Equal(t, storage.RefreshTokenActive, row.State, "disabling new issuance does not change existing grants")
+	}
 }
 
 func TestIndependentConcurrentFirstLogin(t *testing.T) {

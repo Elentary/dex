@@ -108,6 +108,9 @@ func (rt *RefreshStore) Create(ctx context.Context, auth Authorization) (string,
 				return old, ErrRefreshTokenInvalid
 			}
 			old.State = ""
+			if auth.Client.RefreshTokenLimit > 0 {
+				old.State = storage.RefreshTokenActive
+			}
 			return old, nil
 		})
 	}
@@ -199,7 +202,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 		// Reset per execution: a backend that retries the updater (kubernetes,
 		// on conflict) must not carry a stale decision from an earlier run.
 		mint = false
-		if old.State != "" || strategy.CompletelyExpired(old.CreatedAt) || strategy.ExpiredBecauseUnused(old.LastUsed) {
+		if !old.IsActive() || strategy.CompletelyExpired(old.CreatedAt) || strategy.ExpiredBecauseUnused(old.LastUsed) {
 			return old, ErrRefreshTokenInvalid
 		}
 
@@ -265,7 +268,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 
 		// Finalize: write the refreshed claims.
 		finalize := func(old storage.RefreshToken) (storage.RefreshToken, error) {
-			if old.State != "" || old.Token != newToken.Token {
+			if !old.IsActive() || old.Token != newToken.Token {
 				return old, errors.New("refresh token claimed twice")
 			}
 
@@ -307,7 +310,7 @@ func (rt *RefreshStore) Rotate(ctx context.Context, storageToken *storage.Refres
 // an undo that itself fails is logged and otherwise ignored.
 func (rt *RefreshStore) undoClaim(ctx context.Context, id string, rotate bool, mintedToken, prevObsolete string, lastUsed, claimedFrom time.Time) {
 	err := rt.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
-		if old.State != "" || old.Token != mintedToken || !old.LastUsed.Equal(lastUsed) {
+		if !old.IsActive() || old.Token != mintedToken || !old.LastUsed.Equal(lastUsed) {
 			return old, nil
 		}
 		if rotate {
