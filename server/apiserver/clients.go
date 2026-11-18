@@ -29,6 +29,7 @@ func (d dexAPI) GetClient(ctx context.Context, req *api.GetClientReq) (*api.GetC
 			BackchannelLogoutUri:   c.BackchannelLogoutURI,
 			PostLogoutRedirectUris: c.PostLogoutRedirectURIs,
 			RefreshTokenLifetime:   c.RefreshTokenLifetime,
+			RefreshTokenLimit:      c.RefreshTokenLimit,
 		},
 	}, nil
 }
@@ -62,6 +63,10 @@ func (d dexAPI) CreateClient(ctx context.Context, req *api.CreateClientReq) (*ap
 		BackchannelLogoutURI:   req.Client.BackchannelLogoutUri,
 		PostLogoutRedirectURIs: req.Client.PostLogoutRedirectUris,
 		RefreshTokenLifetime:   req.Client.RefreshTokenLifetime,
+		RefreshTokenLimit:      req.Client.RefreshTokenLimit,
+	}
+	if err := c.ValidateRefreshTokenPolicy(); err != nil {
+		return nil, err
 	}
 	if err := d.s.CreateClient(ctx, c); err != nil {
 		if err == storage.ErrAlreadyExists {
@@ -114,7 +119,10 @@ func (d dexAPI) UpdateClient(ctx context.Context, req *api.UpdateClientReq) (*ap
 		if req.RefreshTokenLifetime != nil {
 			old.RefreshTokenLifetime = req.GetRefreshTokenLifetime()
 		}
-		return old, nil
+		if req.RefreshTokenLimit != nil {
+			old.RefreshTokenLimit = req.GetRefreshTokenLimit()
+		}
+		return old, old.ValidateRefreshTokenPolicy()
 	})
 	if err != nil {
 		if err == storage.ErrNotFound {
@@ -159,6 +167,7 @@ func (d dexAPI) ListClients(ctx context.Context, req *api.ListClientReq) (*api.L
 			BackchannelLogoutUri:   client.BackchannelLogoutURI,
 			PostLogoutRedirectUris: client.PostLogoutRedirectURIs,
 			RefreshTokenLifetime:   client.RefreshTokenLifetime,
+			RefreshTokenLimit:      client.RefreshTokenLimit,
 		}
 		clients = append(clients, &c)
 	}

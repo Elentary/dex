@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"strings"
 	"time"
 
@@ -205,7 +206,7 @@ func (c *conn) GetRefresh(ctx context.Context, id string) (r storage.RefreshToke
 func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
-	return c.txnUpdate(ctx, keyID(refreshTokenPrefix, id), func(currentValue []byte) ([]byte, error) {
+	return c.txnUpdateExisting(ctx, keyID(refreshTokenPrefix, id), func(currentValue []byte) ([]byte, error) {
 		var current RefreshToken
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
@@ -354,7 +355,7 @@ func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessi
 func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
-	return c.txnUpdate(ctx, keySession(userID, connID), func(currentValue []byte) ([]byte, error) {
+	return c.txnUpdateExisting(ctx, keySession(userID, connID), func(currentValue []byte) ([]byte, error) {
 		var current OfflineSessions
 		if len(currentValue) > 0 {
 			if err := json.Unmarshal(currentValue, &current); err != nil {
@@ -780,4 +781,40 @@ func (c *conn) UpdateDeviceToken(ctx context.Context, deviceCode string, updater
 		}
 		return json.Marshal(fromStorageDeviceToken(updated))
 	})
+}
+
+// txnUpdateExisting retries CAS conflicts against a fresh value. In contrast to
+// the keys upsert, refresh grants and offline sessions must never be recreated
+// by an updater racing a deletion.
+func (c *conn) txnUpdateExisting(ctx context.Context, key string, update func([]byte) ([]byte, error)) error {
+	for attempt := 0; attempt < 32; attempt++ {
+		res, err := c.db.Get(ctx, key)
+		if err != nil {
+			return err
+		}
+		if len(res.Kvs) == 0 {
+			return storage.ErrNotFound
+		}
+		kv := res.Kvs[0]
+		value, err := update(kv.Value)
+		if err != nil {
+			return err
+		}
+		committed, err := c.db.Txn(ctx).If(clientv3.Compare(clientv3.ModRevision(key), "=", kv.ModRevision)).Then(clientv3.OpPut(key, string(value))).Commit()
+		if err != nil {
+			return err
+		}
+		if committed.Succeeded {
+			return nil
+		}
+		delay := min(250, 5<<min(attempt, 6))
+		timer := time.NewTimer(time.Duration(delay/2+rand.IntN(delay/2+1)) * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return fmt.Errorf("refresh transaction conflicted too many times")
 }

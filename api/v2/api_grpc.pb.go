@@ -50,6 +50,7 @@ const (
 	Dex_DeleteWebAuthnCredential_FullMethodName     = "/api.Dex/DeleteWebAuthnCredential"
 	Dex_DeleteMFASecret_FullMethodName              = "/api.Dex/DeleteMFASecret"
 	Dex_RevokeConsent_FullMethodName                = "/api.Dex/RevokeConsent"
+	Dex_RevokeRefreshToken_FullMethodName           = "/api.Dex/RevokeRefreshToken"
 )
 
 // DexClient is the client API for Dex service.
@@ -123,6 +124,8 @@ type DexClient interface {
 	DeleteMFASecret(ctx context.Context, in *DeleteMFASecretReq, opts ...grpc.CallOption) (*DeleteMFASecretResp, error)
 	// RevokeConsent revokes consent for a specific client.
 	RevokeConsent(ctx context.Context, in *RevokeConsentReq, opts ...grpc.CallOption) (*RevokeConsentResp, error)
+	// Revoke one grant. Older servers return Unimplemented, never a broad revoke.
+	RevokeRefreshToken(ctx context.Context, in *RevokeRefreshTokenReq, opts ...grpc.CallOption) (*RevokeRefreshTokenResp, error)
 }
 
 type dexClient struct {
@@ -443,6 +446,16 @@ func (c *dexClient) RevokeConsent(ctx context.Context, in *RevokeConsentReq, opt
 	return out, nil
 }
 
+func (c *dexClient) RevokeRefreshToken(ctx context.Context, in *RevokeRefreshTokenReq, opts ...grpc.CallOption) (*RevokeRefreshTokenResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeRefreshTokenResp)
+	err := c.cc.Invoke(ctx, Dex_RevokeRefreshToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DexServer is the server API for Dex service.
 // All implementations must embed UnimplementedDexServer
 // for forward compatibility.
@@ -514,6 +527,8 @@ type DexServer interface {
 	DeleteMFASecret(context.Context, *DeleteMFASecretReq) (*DeleteMFASecretResp, error)
 	// RevokeConsent revokes consent for a specific client.
 	RevokeConsent(context.Context, *RevokeConsentReq) (*RevokeConsentResp, error)
+	// Revoke one grant. Older servers return Unimplemented, never a broad revoke.
+	RevokeRefreshToken(context.Context, *RevokeRefreshTokenReq) (*RevokeRefreshTokenResp, error)
 	mustEmbedUnimplementedDexServer()
 }
 
@@ -616,6 +631,9 @@ func (UnimplementedDexServer) DeleteMFASecret(context.Context, *DeleteMFASecretR
 }
 func (UnimplementedDexServer) RevokeConsent(context.Context, *RevokeConsentReq) (*RevokeConsentResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RevokeConsent not implemented")
+}
+func (UnimplementedDexServer) RevokeRefreshToken(context.Context, *RevokeRefreshTokenReq) (*RevokeRefreshTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeRefreshToken not implemented")
 }
 func (UnimplementedDexServer) mustEmbedUnimplementedDexServer() {}
 func (UnimplementedDexServer) testEmbeddedByValue()             {}
@@ -1196,6 +1214,24 @@ func _Dex_RevokeConsent_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_RevokeRefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRefreshTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).RevokeRefreshToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_RevokeRefreshToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).RevokeRefreshToken(ctx, req.(*RevokeRefreshTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Dex_ServiceDesc is the grpc.ServiceDesc for Dex service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1326,6 +1362,10 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RevokeConsent",
 			Handler:    _Dex_RevokeConsent_Handler,
+		},
+		{
+			MethodName: "RevokeRefreshToken",
+			Handler:    _Dex_RevokeRefreshToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -101,6 +101,7 @@ func toStorageClient(c *db.OAuth2Client) storage.Client {
 		SSOSharedWith:           c.SSOSharedWith,
 		BackchannelLogoutURI:    c.BackchannelLogoutURI,
 		RefreshTokenLifetime:    c.RefreshTokenLifetime,
+		RefreshTokenLimit:       c.RefreshTokenLimit,
 		ClientCredentialsClaims: c.ClientCredentialsClaims,
 	}
 }
@@ -122,6 +123,11 @@ func toStorageOfflineSession(o *db.OfflineSession) storage.OfflineSessions {
 		ConnectorData: *o.ConnectorData,
 	}
 
+	if o.RefreshTokens != nil {
+		if err := json.Unmarshal(o.RefreshTokens, &s.RefreshTokens); err != nil {
+			panic(err)
+		}
+	}
 	if o.Refresh != nil {
 		if err := json.Unmarshal(o.Refresh, &s.Refresh); err != nil {
 			// Correctness of json structure if guaranteed on uploading
@@ -139,6 +145,7 @@ func toStorageRefreshToken(r *db.RefreshToken) storage.RefreshToken {
 		ID:            r.ID,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		State:         r.State,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,

@@ -507,4 +507,11 @@ var migrations = []migration{
 			`alter table auth_code add column session_id text not null default '';`,
 		},
 	},
+	{
+		stmts: []string{
+			`alter table client add column refresh_token_limit bigint not null default 0;`,
+			`alter table offline_session add column refresh_tokens bytea;`,
+			`alter table refresh_token add column state text not null default '';`,
+		},
+	},
 }

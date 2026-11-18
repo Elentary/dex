@@ -383,6 +383,9 @@ func (h *Handler) writeError(ctx context.Context, w http.ResponseWriter, err err
 // authorization code bound into the ID token's c_hash, empty when there is none.
 func issueTokens(ctx context.Context, logger *slog.Logger, issuer *tokens.Issuer, auth tokens.Authorization, code string, withRefresh bool) (Responder, error) {
 	resp, err := issuer.IssueResponse(ctx, auth, code, withRefresh)
+	if errors.Is(err, tokens.ErrRefreshTokenLimit) {
+		return nil, &oauth2.Error{Type: oauth2.InvalidGrant, Status: http.StatusBadRequest, Description: err.Error()}
+	}
 	if err != nil {
 		logger.ErrorContext(ctx, "failed to issue tokens", "err", err)
 		return nil, &oauth2.Error{Type: oauth2.ServerError, Status: http.StatusInternalServerError}

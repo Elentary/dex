@@ -176,7 +176,7 @@ func (s *memStorage) CreateOfflineSessions(ctx context.Context, o storage.Offlin
 		if _, ok := s.offlineSessions[id]; ok {
 			err = storage.ErrAlreadyExists
 		} else {
-			s.offlineSessions[id] = o
+			s.offlineSessions[id] = o.Clone()
 		}
 	})
 	return
@@ -391,6 +391,7 @@ func (s *memStorage) GetOfflineSessions(ctx context.Context, userID string, conn
 			err = storage.ErrNotFound
 			return
 		}
+		o = o.Clone()
 	})
 	return
 }
@@ -601,8 +602,8 @@ func (s *memStorage) UpdateOfflineSessions(ctx context.Context, userID string, c
 			err = storage.ErrNotFound
 			return
 		}
-		if r, err = updater(r); err == nil {
-			s.offlineSessions[id] = r
+		if r, err = updater(r.Clone()); err == nil {
+			s.offlineSessions[id] = r.Clone()
 		}
 	})
 	return

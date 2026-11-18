@@ -49,6 +49,7 @@ func RunTests(t *testing.T, newStorage func(t *testing.T) storage.Storage) {
 		{"AuthRequestCRUD", testAuthRequestCRUD},
 		{"ClientCRUD", testClientCRUD},
 		{"RefreshTokenCRUD", testRefreshTokenCRUD},
+		{"IndependentRefreshAdmission", testIndependentRefreshAdmission},
 		{"PasswordCRUD", testPasswordCRUD},
 		{"KeysCRUD", testKeysCRUD},
 		{"OfflineSessionCRUD", testOfflineSessionCRUD},
@@ -326,7 +327,8 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		// when a backend drops them.
 		BackchannelLogoutURI:   "https://auth.example.com/backchannel-logout",
 		PostLogoutRedirectURIs: []string{"https://auth.example.com/"},
-		RefreshTokenLifetime:   storage.RefreshTokenLifetimeSession,
+		RefreshTokenLifetime:   storage.RefreshTokenLifetimeStandalone,
+		RefreshTokenLimit:      50,
 	}
 	err := s.DeleteClient(ctx, id1)
 	mustBeErrNotFound(t, "client", err)
@@ -379,6 +381,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 	// An update carries those same fields, not just the one it changes.
 	err = s.UpdateClient(ctx, id1, func(old storage.Client) (storage.Client, error) {
 		old.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+		old.RefreshTokenLimit = 2
 		old.BackchannelLogoutURI = "https://auth.example.com/logout-2"
 		return old, nil
 	})
@@ -386,6 +389,7 @@ func testClientCRUD(t *testing.T, s storage.Storage) {
 		t.Errorf("update client: %v", err)
 	}
 	c1.RefreshTokenLifetime = storage.RefreshTokenLifetimeStandalone
+	c1.RefreshTokenLimit = 2
 	c1.BackchannelLogoutURI = "https://auth.example.com/logout-2"
 	getAndCompare(id1, c1)
 
@@ -443,6 +447,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 		ID:            id,
 		Token:         "bar",
 		ObsoleteToken: "",
+		State:         storage.RefreshTokenPending,
 		Nonce:         "foo",
 		ClientID:      "client_id",
 		ConnectorID:   "client_secret",
@@ -523,6 +528,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	updatedAt := time.Now().UTC().Round(time.Millisecond)
 
 	updater := func(r storage.RefreshToken) (storage.RefreshToken, error) {
+		r.State = storage.RefreshTokenActive
 		r.Token = "spam"
 		r.LastUsed = updatedAt
 		return r, nil
@@ -530,6 +536,7 @@ func testRefreshTokenCRUD(t *testing.T, s storage.Storage) {
 	if err := s.UpdateRefreshToken(ctx, id, updater); err != nil {
 		t.Errorf("failed to update refresh token: %v", err)
 	}
+	refresh.State = storage.RefreshTokenActive
 	refresh.Token = "spam"
 	refresh.LastUsed = updatedAt
 	getAndCompare(id, refresh)
@@ -710,9 +717,11 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 		LastUsed:  time.Now().UTC().Round(time.Millisecond),
 	}
 	session1.Refresh[tokenRef.ClientID] = &tokenRef
+	session1.RefreshTokens = map[string]*storage.RefreshTokenRef{tokenRef.ID: &tokenRef}
 
 	if err := s.UpdateOfflineSessions(ctx, session1.UserID, session1.ConnID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		old.Refresh[tokenRef.ClientID] = &tokenRef
+		old.RefreshTokens = session1.RefreshTokens
 		return old, nil
 	}); err != nil {
 		t.Fatalf("failed to update offline session: %v", err)

@@ -159,7 +159,8 @@ func toStorageAuthRequest(a AuthRequest) storage.AuthRequest {
 
 // RefreshToken is a mirrored struct from storage with JSON struct tags
 type RefreshToken struct {
-	ID string `json:"id"`
+	State string `json:"state,omitempty"`
+	ID    string `json:"id"`
 
 	Token         string `json:"token"`
 	ObsoleteToken string `json:"obsolete_token"`
@@ -183,6 +184,7 @@ func toStorageRefreshToken(r RefreshToken) storage.RefreshToken {
 		ID:            r.ID,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		State:         r.State,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -199,6 +201,7 @@ func fromStorageRefreshToken(r storage.RefreshToken) RefreshToken {
 		ID:            r.ID,
 		Token:         r.Token,
 		ObsoleteToken: r.ObsoleteToken,
+		State:         r.State,
 		CreatedAt:     r.CreatedAt,
 		LastUsed:      r.LastUsed,
 		ClientID:      r.ClientID,
@@ -252,6 +255,7 @@ type Keys struct {
 
 // OfflineSessions is a mirrored struct from storage with JSON struct tags
 type OfflineSessions struct {
+	RefreshTokens map[string]*storage.RefreshTokenRef `json:"refreshTokens,omitempty"`
 	UserID        string                              `json:"user_id,omitempty"`
 	ConnID        string                              `json:"conn_id,omitempty"`
 	Refresh       map[string]*storage.RefreshTokenRef `json:"refresh,omitempty"`
@@ -263,6 +267,7 @@ func fromStorageOfflineSessions(o storage.OfflineSessions) OfflineSessions {
 		UserID:        o.UserID,
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
+		RefreshTokens: o.RefreshTokens,
 		ConnectorData: o.ConnectorData,
 	}
 }
@@ -272,6 +277,7 @@ func toStorageOfflineSessions(o OfflineSessions) storage.OfflineSessions {
 		UserID:        o.UserID,
 		ConnID:        o.ConnID,
 		Refresh:       o.Refresh,
+		RefreshTokens: o.RefreshTokens,
 		ConnectorData: o.ConnectorData,
 	}
 	if s.Refresh == nil {

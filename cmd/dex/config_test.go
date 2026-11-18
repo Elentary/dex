@@ -86,6 +86,21 @@ func TestInvalidRefreshTokenLifetime(t *testing.T) {
 	require.Contains(t, err.Error(), `client "proxy"`)
 }
 
+func TestInvalidRefreshTokenLimitWithSession(t *testing.T) {
+	configuration := Config{
+		Issuer:  "http://127.0.0.1:5556/dex",
+		Storage: Storage{Type: "sqlite3", Config: &sql.SQLite3{File: "examples/dex.db"}},
+		Web:     Web{HTTP: "127.0.0.1:5556"},
+		StaticClients: []storage.Client{
+			{ID: "proxy", RefreshTokenLifetime: "session", RefreshTokenLimit: 1},
+		},
+	}
+
+	err := configuration.Validate()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `client "proxy"`)
+}
+
 // TestInvalidTLSPreferences: bad cipher suite and curve names must be reported
 // alongside the other config errors instead of hiding them.
 func TestInvalidTLSPreferences(t *testing.T) {

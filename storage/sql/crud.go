@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // TODO(ericchiang): The update, insert, and select methods queries are all
@@ -320,16 +321,16 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, state
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);
 	`,
 		r.ID, r.ClientID, encoder(r.Scopes), r.Nonce,
 		r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 		r.Claims.Email, r.Claims.EmailVerified,
 		encoder(r.Claims.Groups),
 		r.ConnectorID, r.ConnectorData,
-		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed,
+		r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, r.State,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -341,6 +342,10 @@ func (c *conn) CreateRefresh(ctx context.Context, r storage.RefreshToken) error 
 }
 
 func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
+	return sqlretry.Do(ctx, func() error { return c.updateRefreshToken(ctx, id, updater) })
+}
+
+func (c *conn) updateRefreshToken(ctx context.Context, id string, updater func(old storage.RefreshToken) (storage.RefreshToken, error)) error {
 	return c.ExecTx(func(tx *trans) error {
 		r, err := getRefresh(ctx, tx, id)
 		if err != nil {
@@ -366,19 +371,20 @@ func (c *conn) UpdateRefreshToken(ctx context.Context, id string, updater func(o
 				token = $12,
                 obsolete_token = $13,
 				created_at = $14,
-				last_used = $15
+				last_used = $15,
+				state = $16
 			where
-				id = $16
+				id = $17
 		`,
 			r.ClientID, encoder(r.Scopes), r.Nonce,
 			r.Claims.UserID, r.Claims.Username, r.Claims.PreferredUsername,
 			r.Claims.Email, r.Claims.EmailVerified,
 			encoder(r.Claims.Groups),
 			r.ConnectorID, r.ConnectorData,
-			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, id,
+			r.Token, r.ObsoleteToken, r.CreatedAt, r.LastUsed, r.State, id,
 		)
 		if err != nil {
-			return fmt.Errorf("update refresh token: %v", err)
+			return fmt.Errorf("update refresh token: %w", err)
 		}
 		return nil
 	})
@@ -396,7 +402,7 @@ func getRefresh(ctx context.Context, q querier, id string) (storage.RefreshToken
 			claims_email, claims_email_verified,
 			claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, state
 		from refresh_token where id = $1;
 	`, id))
 }
@@ -408,7 +414,7 @@ func (c *conn) ListRefreshTokens(ctx context.Context) ([]storage.RefreshToken, e
 			claims_user_id, claims_username, claims_preferred_username,
 			claims_email, claims_email_verified, claims_groups,
 			connector_id, connector_data,
-			token, obsolete_token, created_at, last_used
+			token, obsolete_token, created_at, last_used, state
 		from refresh_token;
 	`)
 	if err != nil {
@@ -437,13 +443,13 @@ func scanRefresh(s scanner) (r storage.RefreshToken, err error) {
 		&r.Claims.Email, &r.Claims.EmailVerified,
 		decoder(&r.Claims.Groups),
 		&r.ConnectorID, &r.ConnectorData,
-		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed,
+		&r.Token, &r.ObsoleteToken, &r.CreatedAt, &r.LastUsed, &r.State,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return r, storage.ErrNotFound
 		}
-		return r, fmt.Errorf("scan refresh_token: %v", err)
+		return r, fmt.Errorf("scan refresh_token: %w", err)
 	}
 	return r, nil
 }
@@ -549,9 +555,10 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 				post_logout_redirect_uris = $9,
 				sso_shared_with = $10,
 				backchannel_logout_uri = $11,
-				refresh_token_lifetime = $12
-			where id = $13;
-		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedConnectors), encoder(nc.MFAChain), encoder(nc.PostLogoutRedirectURIs), encoder(nc.SSOSharedWith), nc.BackchannelLogoutURI, nc.RefreshTokenLifetime, id,
+				refresh_token_lifetime = $12,
+				refresh_token_limit = $13
+			where id = $14;
+		`, nc.Secret, encoder(nc.RedirectURIs), encoder(nc.TrustedPeers), nc.Public, nc.Name, nc.LogoURL, encoder(nc.AllowedConnectors), encoder(nc.MFAChain), encoder(nc.PostLogoutRedirectURIs), encoder(nc.SSOSharedWith), nc.BackchannelLogoutURI, nc.RefreshTokenLifetime, nc.RefreshTokenLimit, id,
 		)
 		if err != nil {
 			return fmt.Errorf("update client: %v", err)
@@ -563,12 +570,12 @@ func (c *conn) UpdateClient(ctx context.Context, id string, updater func(old sto
 func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 	_, err := c.Exec(`
 		insert into client (
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with, backchannel_logout_uri, refresh_token_lifetime
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with, backchannel_logout_uri, refresh_token_lifetime, refresh_token_limit
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 	`,
 		cli.ID, cli.Secret, encoder(cli.RedirectURIs), encoder(cli.TrustedPeers),
-		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedConnectors), encoder(cli.MFAChain), encoder(cli.PostLogoutRedirectURIs), encoder(cli.SSOSharedWith), cli.BackchannelLogoutURI, cli.RefreshTokenLifetime,
+		cli.Public, cli.Name, cli.LogoURL, encoder(cli.AllowedConnectors), encoder(cli.MFAChain), encoder(cli.PostLogoutRedirectURIs), encoder(cli.SSOSharedWith), cli.BackchannelLogoutURI, cli.RefreshTokenLifetime, cli.RefreshTokenLimit,
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -582,7 +589,7 @@ func (c *conn) CreateClient(ctx context.Context, cli storage.Client) error {
 func getClient(ctx context.Context, q querier, id string) (storage.Client, error) {
 	return scanClient(q.QueryRow(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with, backchannel_logout_uri, refresh_token_lifetime
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with, backchannel_logout_uri, refresh_token_lifetime, refresh_token_limit
 	    from client where id = $1;
 	`, id))
 }
@@ -594,7 +601,7 @@ func (c *conn) GetClient(ctx context.Context, id string) (storage.Client, error)
 func (c *conn) ListClients(ctx context.Context) ([]storage.Client, error) {
 	rows, err := c.Query(`
 		select
-			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with, backchannel_logout_uri, refresh_token_lifetime
+			id, secret, redirect_uris, trusted_peers, public, name, logo_url, allowed_connectors, mfa_chain, post_logout_redirect_uris, sso_shared_with, backchannel_logout_uri, refresh_token_lifetime, refresh_token_limit
 		from client;
 	`)
 	if err != nil {
@@ -623,7 +630,7 @@ func scanClient(s scanner) (cli storage.Client, err error) {
 	var ssoSharedWith []byte
 	err = s.Scan(
 		&cli.ID, &cli.Secret, decoder(&cli.RedirectURIs), decoder(&cli.TrustedPeers),
-		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors, &mfaChain, &postLogoutRedirectURIs, &ssoSharedWith, &cli.BackchannelLogoutURI, &cli.RefreshTokenLifetime,
+		&cli.Public, &cli.Name, &cli.LogoURL, &allowedConnectors, &mfaChain, &postLogoutRedirectURIs, &ssoSharedWith, &cli.BackchannelLogoutURI, &cli.RefreshTokenLifetime, &cli.RefreshTokenLimit,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -758,13 +765,13 @@ func scanPassword(s scanner) (p storage.Password, err error) {
 func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessions) error {
 	_, err := c.Exec(`
 		insert into offline_session (
-			user_id, conn_id, refresh, connector_data
+			user_id, conn_id, refresh, connector_data, refresh_tokens
 		)
 		values (
-			$1, $2, $3, $4
+			$1, $2, $3, $4, $5
 		);
 	`,
-		s.UserID, s.ConnID, encoder(s.Refresh), s.ConnectorData,
+		s.UserID, s.ConnID, encoder(s.Refresh), s.ConnectorData, encoder(s.RefreshTokens),
 	)
 	if err != nil {
 		if c.alreadyExistsCheck(err) {
@@ -776,6 +783,10 @@ func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessi
 }
 
 func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
+	return sqlretry.Do(ctx, func() error { return c.updateOfflineSessions(ctx, userID, connID, updater) })
+}
+
+func (c *conn) updateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	return c.ExecTx(func(tx *trans) error {
 		s, err := getOfflineSessions(ctx, tx, userID, connID)
 		if err != nil {
@@ -790,13 +801,14 @@ func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID 
 			update offline_session
 			set
 				refresh = $1,
-				connector_data = $2
-			where user_id = $3 AND conn_id = $4;
+				connector_data = $2,
+				refresh_tokens = $3
+			where user_id = $4 AND conn_id = $5;
 		`,
-			encoder(newSession.Refresh), newSession.ConnectorData, s.UserID, s.ConnID,
+			encoder(newSession.Refresh), newSession.ConnectorData, encoder(newSession.RefreshTokens), s.UserID, s.ConnID,
 		)
 		if err != nil {
-			return fmt.Errorf("update offline session: %v", err)
+			return fmt.Errorf("update offline session: %w", err)
 		}
 		return nil
 	})
@@ -809,21 +821,27 @@ func (c *conn) GetOfflineSessions(ctx context.Context, userID string, connID str
 func getOfflineSessions(ctx context.Context, q querier, userID string, connID string) (storage.OfflineSessions, error) {
 	return scanOfflineSessions(q.QueryRow(`
 		select
-			user_id, conn_id, refresh, connector_data
+			user_id, conn_id, refresh, connector_data, refresh_tokens
 		from offline_session
 		where user_id = $1 AND conn_id = $2;
 		`, userID, connID))
 }
 
 func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
+	var tokens []byte
 	err = s.Scan(
-		&o.UserID, &o.ConnID, decoder(&o.Refresh), &o.ConnectorData,
+		&o.UserID, &o.ConnID, decoder(&o.Refresh), &o.ConnectorData, &tokens,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return o, storage.ErrNotFound
 		}
-		return o, fmt.Errorf("select offline session: %v", err)
+		return o, fmt.Errorf("select offline session: %w", err)
+	}
+	if len(tokens) > 0 {
+		if err := json.Unmarshal(tokens, &o.RefreshTokens); err != nil {
+			return o, err
+		}
 	}
 	return o, nil
 }

@@ -3,6 +3,9 @@ package apiserver
 import (
 	"context"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
@@ -26,8 +29,8 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 		return nil, err
 	}
 
-	refreshTokenRefs := make([]*api.RefreshTokenRef, 0, len(offlineSessions.Refresh))
-	for _, session := range offlineSessions.Refresh {
+	refreshTokenRefs := make([]*api.RefreshTokenRef, 0, len(offlineSessions.RefreshTokenRefs()))
+	for _, session := range offlineSessions.RefreshTokenRefs() {
 		r := api.RefreshTokenRef{
 			Id:        session.ID,
 			ClientId:  session.ClientID,
@@ -49,48 +52,28 @@ func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*
 		return nil, err
 	}
 
-	var (
-		refreshID string
-		notFound  bool
-	)
-	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		refreshRef := old.Refresh[req.ClientId]
-		if refreshRef == nil || refreshRef.ID == "" {
-			d.logger.Error("refresh token issued to client not found for deletion", "client_id", req.ClientId, "user_id", id.UserId)
-			notFound = true
-			return old, storage.ErrNotFound
-		}
-
-		refreshID = refreshRef.ID
-
-		// Remove entry from Refresh list of the OfflineSession object.
-		delete(old.Refresh, req.ClientId)
-
-		return old, nil
-	}
-
-	if err := d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, updater); err != nil {
-		if err == storage.ErrNotFound {
-			return &api.RevokeRefreshResp{NotFound: true}, nil
-		}
-		d.logger.Error("failed to update offline session object", "err", err)
+	n, err := d.refresh.Revoke(ctx, id.UserId, id.ConnId, func(ref *storage.RefreshTokenRef) bool { return ref.ClientID == req.ClientId })
+	if err != nil {
 		return nil, err
 	}
+	return &api.RevokeRefreshResp{NotFound: n == 0}, nil
+}
 
-	if notFound {
-		return &api.RevokeRefreshResp{NotFound: true}, nil
+func (d dexAPI) RevokeRefreshToken(ctx context.Context, req *api.RevokeRefreshTokenReq) (*api.RevokeRefreshTokenResp, error) {
+	id := new(internal.IDTokenSubject)
+	if req.UserId == "" || req.ClientId == "" || req.RefreshTokenId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id, client_id and refresh_token_id are required")
 	}
-
-	// Delete the refresh token from the storage
-	//
-	// TODO(ericchiang): we don't have any good recourse if this call fails.
-	// Consider garbage collection of refresh tokens with no associated ref.
-	if err := d.s.DeleteRefresh(ctx, refreshID); err != nil {
-		d.logger.Error("failed to delete refresh token", "err", err)
+	if err := internal.Unmarshal(req.UserId, id); err != nil {
+		return nil, status.Error(codes.InvalidArgument, "invalid user_id")
+	}
+	n, err := d.refresh.Revoke(ctx, id.UserId, id.ConnId, func(ref *storage.RefreshTokenRef) bool {
+		return ref.ClientID == req.ClientId && ref.ID == req.RefreshTokenId
+	})
+	if err != nil {
 		return nil, err
 	}
-
-	return &api.RevokeRefreshResp{}, nil
+	return &api.RevokeRefreshTokenResp{NotFound: n == 0}, nil
 }
 
 // revokeUserRefreshTokens revokes all refresh tokens for a user/connector pair

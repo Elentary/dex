@@ -64,6 +64,11 @@ func IDContainsFold(id string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldContainsFold(FieldID, id))
 }
 
+// State applies equality check predicate on the "state" field. It's identical to StateEQ.
+func State(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldState, v))
+}
+
 // ClientID applies equality check predicate on the "client_id" field. It's identical to ClientIDEQ.
 func ClientID(v string) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldClientID, v))
@@ -127,6 +132,71 @@ func CreatedAt(v time.Time) predicate.RefreshToken {
 // LastUsed applies equality check predicate on the "last_used" field. It's identical to LastUsedEQ.
 func LastUsed(v time.Time) predicate.RefreshToken {
 	return predicate.RefreshToken(sql.FieldEQ(FieldLastUsed, v))
+}
+
+// StateEQ applies the EQ predicate on the "state" field.
+func StateEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEQ(FieldState, v))
+}
+
+// StateNEQ applies the NEQ predicate on the "state" field.
+func StateNEQ(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNEQ(FieldState, v))
+}
+
+// StateIn applies the In predicate on the "state" field.
+func StateIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldIn(FieldState, vs...))
+}
+
+// StateNotIn applies the NotIn predicate on the "state" field.
+func StateNotIn(vs ...string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldNotIn(FieldState, vs...))
+}
+
+// StateGT applies the GT predicate on the "state" field.
+func StateGT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGT(FieldState, v))
+}
+
+// StateGTE applies the GTE predicate on the "state" field.
+func StateGTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldGTE(FieldState, v))
+}
+
+// StateLT applies the LT predicate on the "state" field.
+func StateLT(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLT(FieldState, v))
+}
+
+// StateLTE applies the LTE predicate on the "state" field.
+func StateLTE(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldLTE(FieldState, v))
+}
+
+// StateContains applies the Contains predicate on the "state" field.
+func StateContains(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContains(FieldState, v))
+}
+
+// StateHasPrefix applies the HasPrefix predicate on the "state" field.
+func StateHasPrefix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasPrefix(FieldState, v))
+}
+
+// StateHasSuffix applies the HasSuffix predicate on the "state" field.
+func StateHasSuffix(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldHasSuffix(FieldState, v))
+}
+
+// StateEqualFold applies the EqualFold predicate on the "state" field.
+func StateEqualFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldEqualFold(FieldState, v))
+}
+
+// StateContainsFold applies the ContainsFold predicate on the "state" field.
+func StateContainsFold(v string) predicate.RefreshToken {
+	return predicate.RefreshToken(sql.FieldContainsFold(FieldState, v))
 }
 
 // ClientIDEQ applies the EQ predicate on the "client_id" field.

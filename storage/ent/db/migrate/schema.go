@@ -157,6 +157,7 @@ var (
 	// Oauth2clientsColumns holds the columns for the "oauth2clients" table.
 	Oauth2clientsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 100, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "refresh_token_limit", Type: field.TypeUint32, Default: 0},
 		{Name: "secret", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "redirect_uris", Type: field.TypeJSON, Nullable: true},
 		{Name: "trusted_peers", Type: field.TypeJSON, Nullable: true},
@@ -180,6 +181,7 @@ var (
 	// OfflineSessionsColumns holds the columns for the "offline_sessions" table.
 	OfflineSessionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "refresh_tokens", Type: field.TypeBytes, Nullable: true},
 		{Name: "user_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "conn_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "refresh", Type: field.TypeBytes},
@@ -212,6 +214,7 @@ var (
 	// RefreshTokensColumns holds the columns for the "refresh_tokens" table.
 	RefreshTokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
+		{Name: "state", Type: field.TypeString, Default: ""},
 		{Name: "client_id", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},
 		{Name: "scopes", Type: field.TypeJSON, Nullable: true},
 		{Name: "nonce", Type: field.TypeString, Size: 2147483647, SchemaType: map[string]string{"mysql": "varchar(384)", "postgres": "text", "sqlite3": "text"}},

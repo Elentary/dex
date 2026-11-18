@@ -262,12 +262,12 @@ func (_q *OAuth2ClientQuery) Clone() *OAuth2ClientQuery {
 // Example:
 //
 //	var v []struct {
-//		Secret string `json:"secret,omitempty"`
+//		RefreshTokenLimit uint32 `json:"refresh_token_limit,omitempty"`
 //		Count int `json:"count,omitempty"`
 //	}
 //
 //	client.OAuth2Client.Query().
-//		GroupBy(oauth2client.FieldSecret).
+//		GroupBy(oauth2client.FieldRefreshTokenLimit).
 //		Aggregate(db.Count()).
 //		Scan(ctx, &v)
 func (_q *OAuth2ClientQuery) GroupBy(field string, fields ...string) *OAuth2ClientGroupBy {
@@ -285,11 +285,11 @@ func (_q *OAuth2ClientQuery) GroupBy(field string, fields ...string) *OAuth2Clie
 // Example:
 //
 //	var v []struct {
-//		Secret string `json:"secret,omitempty"`
+//		RefreshTokenLimit uint32 `json:"refresh_token_limit,omitempty"`
 //	}
 //
 //	client.OAuth2Client.Query().
-//		Select(oauth2client.FieldSecret).
+//		Select(oauth2client.FieldRefreshTokenLimit).
 //		Scan(ctx, &v)
 func (_q *OAuth2ClientQuery) Select(fields ...string) *OAuth2ClientSelect {
 	_q.ctx.Fields = append(_q.ctx.Fields, fields...)

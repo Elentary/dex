@@ -28,6 +28,7 @@ type OAuth2Client struct {
 // Fields of the OAuth2Client.
 func (OAuth2Client) Fields() []ent.Field {
 	return []ent.Field{
+		field.Uint32("refresh_token_limit").Default(0),
 		field.Text("id").
 			SchemaType(textSchema).
 			MaxLen(100).

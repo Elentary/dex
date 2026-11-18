@@ -19,6 +19,12 @@ type OfflineSessionCreate struct {
 	hooks    []Hook
 }
 
+// SetRefreshTokens sets the "refresh_tokens" field.
+func (_c *OfflineSessionCreate) SetRefreshTokens(v []byte) *OfflineSessionCreate {
+	_c.mutation.SetRefreshTokens(v)
+	return _c
+}
+
 // SetUserID sets the "user_id" field.
 func (_c *OfflineSessionCreate) SetUserID(v string) *OfflineSessionCreate {
 	_c.mutation.SetUserID(v)
@@ -141,6 +147,10 @@ func (_c *OfflineSessionCreate) createSpec() (*OfflineSession, *sqlgraph.CreateS
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
+	}
+	if value, ok := _c.mutation.RefreshTokens(); ok {
+		_spec.SetField(offlinesession.FieldRefreshTokens, field.TypeBytes, value)
+		_node.RefreshTokens = value
 	}
 	if value, ok := _c.mutation.UserID(); ok {
 		_spec.SetField(offlinesession.FieldUserID, field.TypeString, value)

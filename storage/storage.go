@@ -185,6 +185,10 @@ type Client struct {
 	// session that issued them. See the constants below; empty means Standalone.
 	RefreshTokenLifetime string `json:"refreshTokenLifetime"`
 
+	// RefreshTokenLimit enables independent standalone grants when positive.
+	// Zero preserves replacement on login. The quota is per user/connector/client.
+	RefreshTokenLimit uint32 `json:"refreshTokenLimit"`
+
 	// TrustedPeers are a list of peers which can issue tokens on this client's behalf using
 	// the dynamic "oauth2:server:client_id:(client_id)" scope. If a peer makes such a request,
 	// this client's ID will appear as the ID Token's audience.
@@ -390,10 +394,23 @@ type AuthCode struct {
 	PKCE PKCE
 }
 
+// Refresh token registration and collection states. Empty means active legacy.
+const (
+	// RefreshTokenActive marks an activated independent grant. Its reference is
+	// never restored after removal, so GC may collect an orphan with this state.
+	// Empty-state legacy grants have no such guarantee: an older issuer may still
+	// be registering one, or a failed replacement may restore its reference.
+	RefreshTokenActive  = "active"
+	RefreshTokenPending = "pending"
+	RefreshTokenRevoked = "revoked"
+)
+
 // RefreshToken is an OAuth2 refresh token which allows a client to request new
 // tokens on the end user's behalf.
 type RefreshToken struct {
-	ID string
+	// State makes registration and conditional garbage collection recoverable.
+	State string
+	ID    string
 
 	// A single token that's rotated every time the refresh token is refreshed.
 	//
@@ -558,6 +575,10 @@ type OfflineSessions struct {
 	// Refresh is a hash table of refresh token reference objects
 	// indexed by the ClientID of the refresh token.
 	Refresh map[string]*RefreshTokenRef
+
+	// RefreshTokens indexes independent grants by RefreshToken.ID. Refresh above
+	// remains keyed by client ID for legacy replacement and upgrade compatibility.
+	RefreshTokens map[string]*RefreshTokenRef
 
 	// Authentication data provided by an upstream source.
 	ConnectorData []byte

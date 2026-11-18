@@ -6605,6 +6605,8 @@ type OAuth2ClientMutation struct {
 	op                              Op
 	typ                             string
 	id                              *string
+	refresh_token_limit             *uint32
+	addrefresh_token_limit          *int32
 	secret                          *string
 	redirect_uris                   *[]string
 	appendredirect_uris             []string
@@ -6732,6 +6734,62 @@ func (m *OAuth2ClientMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetRefreshTokenLimit sets the "refresh_token_limit" field.
+func (m *OAuth2ClientMutation) SetRefreshTokenLimit(u uint32) {
+	m.refresh_token_limit = &u
+	m.addrefresh_token_limit = nil
+}
+
+// RefreshTokenLimit returns the value of the "refresh_token_limit" field in the mutation.
+func (m *OAuth2ClientMutation) RefreshTokenLimit() (r uint32, exists bool) {
+	v := m.refresh_token_limit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshTokenLimit returns the old "refresh_token_limit" field's value of the OAuth2Client entity.
+// If the OAuth2Client object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OAuth2ClientMutation) OldRefreshTokenLimit(ctx context.Context) (v uint32, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshTokenLimit is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshTokenLimit requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshTokenLimit: %w", err)
+	}
+	return oldValue.RefreshTokenLimit, nil
+}
+
+// AddRefreshTokenLimit adds u to the "refresh_token_limit" field.
+func (m *OAuth2ClientMutation) AddRefreshTokenLimit(u int32) {
+	if m.addrefresh_token_limit != nil {
+		*m.addrefresh_token_limit += u
+	} else {
+		m.addrefresh_token_limit = &u
+	}
+}
+
+// AddedRefreshTokenLimit returns the value that was added to the "refresh_token_limit" field in this mutation.
+func (m *OAuth2ClientMutation) AddedRefreshTokenLimit() (r int32, exists bool) {
+	v := m.addrefresh_token_limit
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetRefreshTokenLimit resets all changes to the "refresh_token_limit" field.
+func (m *OAuth2ClientMutation) ResetRefreshTokenLimit() {
+	m.refresh_token_limit = nil
+	m.addrefresh_token_limit = nil
 }
 
 // SetSecret sets the "secret" field.
@@ -7449,7 +7507,10 @@ func (m *OAuth2ClientMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OAuth2ClientMutation) Fields() []string {
-	fields := make([]string, 0, 13)
+	fields := make([]string, 0, 14)
+	if m.refresh_token_limit != nil {
+		fields = append(fields, oauth2client.FieldRefreshTokenLimit)
+	}
 	if m.secret != nil {
 		fields = append(fields, oauth2client.FieldSecret)
 	}
@@ -7497,6 +7558,8 @@ func (m *OAuth2ClientMutation) Fields() []string {
 // schema.
 func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case oauth2client.FieldRefreshTokenLimit:
+		return m.RefreshTokenLimit()
 	case oauth2client.FieldSecret:
 		return m.Secret()
 	case oauth2client.FieldRedirectUris:
@@ -7532,6 +7595,8 @@ func (m *OAuth2ClientMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case oauth2client.FieldRefreshTokenLimit:
+		return m.OldRefreshTokenLimit(ctx)
 	case oauth2client.FieldSecret:
 		return m.OldSecret(ctx)
 	case oauth2client.FieldRedirectUris:
@@ -7567,6 +7632,13 @@ func (m *OAuth2ClientMutation) OldField(ctx context.Context, name string) (ent.V
 // type.
 func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case oauth2client.FieldRefreshTokenLimit:
+		v, ok := value.(uint32)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshTokenLimit(v)
+		return nil
 	case oauth2client.FieldSecret:
 		v, ok := value.(string)
 		if !ok {
@@ -7665,13 +7737,21 @@ func (m *OAuth2ClientMutation) SetField(name string, value ent.Value) error {
 // AddedFields returns all numeric fields that were incremented/decremented during
 // this mutation.
 func (m *OAuth2ClientMutation) AddedFields() []string {
-	return nil
+	var fields []string
+	if m.addrefresh_token_limit != nil {
+		fields = append(fields, oauth2client.FieldRefreshTokenLimit)
+	}
+	return fields
 }
 
 // AddedField returns the numeric value that was incremented/decremented on a field
 // with the given name. The second boolean return value indicates that this field
 // was not set, or was not defined in the schema.
 func (m *OAuth2ClientMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case oauth2client.FieldRefreshTokenLimit:
+		return m.AddedRefreshTokenLimit()
+	}
 	return nil, false
 }
 
@@ -7680,6 +7760,13 @@ func (m *OAuth2ClientMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *OAuth2ClientMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case oauth2client.FieldRefreshTokenLimit:
+		v, ok := value.(int32)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRefreshTokenLimit(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OAuth2Client numeric field %s", name)
 }
@@ -7764,6 +7851,9 @@ func (m *OAuth2ClientMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *OAuth2ClientMutation) ResetField(name string) error {
 	switch name {
+	case oauth2client.FieldRefreshTokenLimit:
+		m.ResetRefreshTokenLimit()
+		return nil
 	case oauth2client.FieldSecret:
 		m.ResetSecret()
 		return nil
@@ -7861,6 +7951,7 @@ type OfflineSessionMutation struct {
 	op             Op
 	typ            string
 	id             *string
+	refresh_tokens *[]byte
 	user_id        *string
 	conn_id        *string
 	refresh        *[]byte
@@ -7973,6 +8064,55 @@ func (m *OfflineSessionMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetRefreshTokens sets the "refresh_tokens" field.
+func (m *OfflineSessionMutation) SetRefreshTokens(b []byte) {
+	m.refresh_tokens = &b
+}
+
+// RefreshTokens returns the value of the "refresh_tokens" field in the mutation.
+func (m *OfflineSessionMutation) RefreshTokens() (r []byte, exists bool) {
+	v := m.refresh_tokens
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRefreshTokens returns the old "refresh_tokens" field's value of the OfflineSession entity.
+// If the OfflineSession object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OfflineSessionMutation) OldRefreshTokens(ctx context.Context) (v []byte, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRefreshTokens is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRefreshTokens requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRefreshTokens: %w", err)
+	}
+	return oldValue.RefreshTokens, nil
+}
+
+// ClearRefreshTokens clears the value of the "refresh_tokens" field.
+func (m *OfflineSessionMutation) ClearRefreshTokens() {
+	m.refresh_tokens = nil
+	m.clearedFields[offlinesession.FieldRefreshTokens] = struct{}{}
+}
+
+// RefreshTokensCleared returns if the "refresh_tokens" field was cleared in this mutation.
+func (m *OfflineSessionMutation) RefreshTokensCleared() bool {
+	_, ok := m.clearedFields[offlinesession.FieldRefreshTokens]
+	return ok
+}
+
+// ResetRefreshTokens resets all changes to the "refresh_tokens" field.
+func (m *OfflineSessionMutation) ResetRefreshTokens() {
+	m.refresh_tokens = nil
+	delete(m.clearedFields, offlinesession.FieldRefreshTokens)
 }
 
 // SetUserID sets the "user_id" field.
@@ -8166,7 +8306,10 @@ func (m *OfflineSessionMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OfflineSessionMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
+	if m.refresh_tokens != nil {
+		fields = append(fields, offlinesession.FieldRefreshTokens)
+	}
 	if m.user_id != nil {
 		fields = append(fields, offlinesession.FieldUserID)
 	}
@@ -8187,6 +8330,8 @@ func (m *OfflineSessionMutation) Fields() []string {
 // schema.
 func (m *OfflineSessionMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case offlinesession.FieldRefreshTokens:
+		return m.RefreshTokens()
 	case offlinesession.FieldUserID:
 		return m.UserID()
 	case offlinesession.FieldConnID:
@@ -8204,6 +8349,8 @@ func (m *OfflineSessionMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *OfflineSessionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case offlinesession.FieldRefreshTokens:
+		return m.OldRefreshTokens(ctx)
 	case offlinesession.FieldUserID:
 		return m.OldUserID(ctx)
 	case offlinesession.FieldConnID:
@@ -8221,6 +8368,13 @@ func (m *OfflineSessionMutation) OldField(ctx context.Context, name string) (ent
 // type.
 func (m *OfflineSessionMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case offlinesession.FieldRefreshTokens:
+		v, ok := value.([]byte)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRefreshTokens(v)
+		return nil
 	case offlinesession.FieldUserID:
 		v, ok := value.(string)
 		if !ok {
@@ -8279,6 +8433,9 @@ func (m *OfflineSessionMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *OfflineSessionMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(offlinesession.FieldRefreshTokens) {
+		fields = append(fields, offlinesession.FieldRefreshTokens)
+	}
 	if m.FieldCleared(offlinesession.FieldConnectorData) {
 		fields = append(fields, offlinesession.FieldConnectorData)
 	}
@@ -8296,6 +8453,9 @@ func (m *OfflineSessionMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *OfflineSessionMutation) ClearField(name string) error {
 	switch name {
+	case offlinesession.FieldRefreshTokens:
+		m.ClearRefreshTokens()
+		return nil
 	case offlinesession.FieldConnectorData:
 		m.ClearConnectorData()
 		return nil
@@ -8307,6 +8467,9 @@ func (m *OfflineSessionMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *OfflineSessionMutation) ResetField(name string) error {
 	switch name {
+	case offlinesession.FieldRefreshTokens:
+		m.ResetRefreshTokens()
+		return nil
 	case offlinesession.FieldUserID:
 		m.ResetUserID()
 		return nil
@@ -9139,6 +9302,7 @@ type RefreshTokenMutation struct {
 	op                        Op
 	typ                       string
 	id                        *string
+	state                     *string
 	client_id                 *string
 	scopes                    *[]string
 	appendscopes              []string
@@ -9264,6 +9428,42 @@ func (m *RefreshTokenMutation) IDs(ctx context.Context) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetState sets the "state" field.
+func (m *RefreshTokenMutation) SetState(s string) {
+	m.state = &s
+}
+
+// State returns the value of the "state" field in the mutation.
+func (m *RefreshTokenMutation) State() (r string, exists bool) {
+	v := m.state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldState returns the old "state" field's value of the RefreshToken entity.
+// If the RefreshToken object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *RefreshTokenMutation) OldState(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldState: %w", err)
+	}
+	return oldValue.State, nil
+}
+
+// ResetState resets all changes to the "state" field.
+func (m *RefreshTokenMutation) ResetState() {
+	m.state = nil
 }
 
 // SetClientID sets the "client_id" field.
@@ -9911,7 +10111,10 @@ func (m *RefreshTokenMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *RefreshTokenMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
+	if m.state != nil {
+		fields = append(fields, refreshtoken.FieldState)
+	}
 	if m.client_id != nil {
 		fields = append(fields, refreshtoken.FieldClientID)
 	}
@@ -9965,6 +10168,8 @@ func (m *RefreshTokenMutation) Fields() []string {
 // schema.
 func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case refreshtoken.FieldState:
+		return m.State()
 	case refreshtoken.FieldClientID:
 		return m.ClientID()
 	case refreshtoken.FieldScopes:
@@ -10004,6 +10209,8 @@ func (m *RefreshTokenMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case refreshtoken.FieldState:
+		return m.OldState(ctx)
 	case refreshtoken.FieldClientID:
 		return m.OldClientID(ctx)
 	case refreshtoken.FieldScopes:
@@ -10043,6 +10250,13 @@ func (m *RefreshTokenMutation) OldField(ctx context.Context, name string) (ent.V
 // type.
 func (m *RefreshTokenMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case refreshtoken.FieldState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetState(v)
+		return nil
 	case refreshtoken.FieldClientID:
 		v, ok := value.(string)
 		if !ok {
@@ -10218,6 +10432,9 @@ func (m *RefreshTokenMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *RefreshTokenMutation) ResetField(name string) error {
 	switch name {
+	case refreshtoken.FieldState:
+		m.ResetState()
+		return nil
 	case refreshtoken.FieldClientID:
 		m.ResetClientID()
 		return nil

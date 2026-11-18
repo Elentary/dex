@@ -62,6 +62,11 @@ func IDContainsFold(id string) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldContainsFold(FieldID, id))
 }
 
+// RefreshTokens applies equality check predicate on the "refresh_tokens" field. It's identical to RefreshTokensEQ.
+func RefreshTokens(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEQ(FieldRefreshTokens, v))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v string) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldEQ(FieldUserID, v))
@@ -80,6 +85,56 @@ func Refresh(v []byte) predicate.OfflineSession {
 // ConnectorData applies equality check predicate on the "connector_data" field. It's identical to ConnectorDataEQ.
 func ConnectorData(v []byte) predicate.OfflineSession {
 	return predicate.OfflineSession(sql.FieldEQ(FieldConnectorData, v))
+}
+
+// RefreshTokensEQ applies the EQ predicate on the "refresh_tokens" field.
+func RefreshTokensEQ(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldEQ(FieldRefreshTokens, v))
+}
+
+// RefreshTokensNEQ applies the NEQ predicate on the "refresh_tokens" field.
+func RefreshTokensNEQ(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNEQ(FieldRefreshTokens, v))
+}
+
+// RefreshTokensIn applies the In predicate on the "refresh_tokens" field.
+func RefreshTokensIn(vs ...[]byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldIn(FieldRefreshTokens, vs...))
+}
+
+// RefreshTokensNotIn applies the NotIn predicate on the "refresh_tokens" field.
+func RefreshTokensNotIn(vs ...[]byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNotIn(FieldRefreshTokens, vs...))
+}
+
+// RefreshTokensGT applies the GT predicate on the "refresh_tokens" field.
+func RefreshTokensGT(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldGT(FieldRefreshTokens, v))
+}
+
+// RefreshTokensGTE applies the GTE predicate on the "refresh_tokens" field.
+func RefreshTokensGTE(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldGTE(FieldRefreshTokens, v))
+}
+
+// RefreshTokensLT applies the LT predicate on the "refresh_tokens" field.
+func RefreshTokensLT(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldLT(FieldRefreshTokens, v))
+}
+
+// RefreshTokensLTE applies the LTE predicate on the "refresh_tokens" field.
+func RefreshTokensLTE(v []byte) predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldLTE(FieldRefreshTokens, v))
+}
+
+// RefreshTokensIsNil applies the IsNil predicate on the "refresh_tokens" field.
+func RefreshTokensIsNil() predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldIsNull(FieldRefreshTokens))
+}
+
+// RefreshTokensNotNil applies the NotNil predicate on the "refresh_tokens" field.
+func RefreshTokensNotNil() predicate.OfflineSession {
+	return predicate.OfflineSession(sql.FieldNotNull(FieldRefreshTokens))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.

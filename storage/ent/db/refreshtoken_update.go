@@ -29,6 +29,20 @@ func (_u *RefreshTokenUpdate) Where(ps ...predicate.RefreshToken) *RefreshTokenU
 	return _u
 }
 
+// SetState sets the "state" field.
+func (_u *RefreshTokenUpdate) SetState(v string) *RefreshTokenUpdate {
+	_u.mutation.SetState(v)
+	return _u
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (_u *RefreshTokenUpdate) SetNillableState(v *string) *RefreshTokenUpdate {
+	if v != nil {
+		_u.SetState(*v)
+	}
+	return _u
+}
+
 // SetClientID sets the "client_id" field.
 func (_u *RefreshTokenUpdate) SetClientID(v string) *RefreshTokenUpdate {
 	_u.mutation.SetClientID(v)
@@ -324,6 +338,9 @@ func (_u *RefreshTokenUpdate) sqlSave(ctx context.Context) (_node int, err error
 			}
 		}
 	}
+	if value, ok := _u.mutation.State(); ok {
+		_spec.SetField(refreshtoken.FieldState, field.TypeString, value)
+	}
 	if value, ok := _u.mutation.ClientID(); ok {
 		_spec.SetField(refreshtoken.FieldClientID, field.TypeString, value)
 	}
@@ -406,6 +423,20 @@ type RefreshTokenUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *RefreshTokenMutation
+}
+
+// SetState sets the "state" field.
+func (_u *RefreshTokenUpdateOne) SetState(v string) *RefreshTokenUpdateOne {
+	_u.mutation.SetState(v)
+	return _u
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (_u *RefreshTokenUpdateOne) SetNillableState(v *string) *RefreshTokenUpdateOne {
+	if v != nil {
+		_u.SetState(*v)
+	}
+	return _u
 }
 
 // SetClientID sets the "client_id" field.
@@ -732,6 +763,9 @@ func (_u *RefreshTokenUpdateOne) sqlSave(ctx context.Context) (_node *RefreshTok
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.State(); ok {
+		_spec.SetField(refreshtoken.FieldState, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ClientID(); ok {
 		_spec.SetField(refreshtoken.FieldClientID, field.TypeString, value)

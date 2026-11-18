@@ -24,6 +24,7 @@ type OfflineSession struct {
 // Fields of the OfflineSession.
 func (OfflineSession) Fields() []ent.Field {
 	return []ent.Field{
+		field.Bytes("refresh_tokens").Optional(),
 		// Using id field here because it's impossible to create multi-key primary yet
 		field.Text("id").
 			SchemaType(textSchema).

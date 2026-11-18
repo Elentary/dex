@@ -20,6 +20,20 @@ type RefreshTokenCreate struct {
 	hooks    []Hook
 }
 
+// SetState sets the "state" field.
+func (_c *RefreshTokenCreate) SetState(v string) *RefreshTokenCreate {
+	_c.mutation.SetState(v)
+	return _c
+}
+
+// SetNillableState sets the "state" field if the given value is not nil.
+func (_c *RefreshTokenCreate) SetNillableState(v *string) *RefreshTokenCreate {
+	if v != nil {
+		_c.SetState(*v)
+	}
+	return _c
+}
+
 // SetClientID sets the "client_id" field.
 func (_c *RefreshTokenCreate) SetClientID(v string) *RefreshTokenCreate {
 	_c.mutation.SetClientID(v)
@@ -191,6 +205,10 @@ func (_c *RefreshTokenCreate) ExecX(ctx context.Context) {
 
 // defaults sets the default values of the builder before save.
 func (_c *RefreshTokenCreate) defaults() {
+	if _, ok := _c.mutation.State(); !ok {
+		v := refreshtoken.DefaultState
+		_c.mutation.SetState(v)
+	}
 	if _, ok := _c.mutation.ClaimsPreferredUsername(); !ok {
 		v := refreshtoken.DefaultClaimsPreferredUsername
 		_c.mutation.SetClaimsPreferredUsername(v)
@@ -215,6 +233,9 @@ func (_c *RefreshTokenCreate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_c *RefreshTokenCreate) check() error {
+	if _, ok := _c.mutation.State(); !ok {
+		return &ValidationError{Name: "state", err: errors.New(`db: missing required field "RefreshToken.state"`)}
+	}
 	if _, ok := _c.mutation.ClientID(); !ok {
 		return &ValidationError{Name: "client_id", err: errors.New(`db: missing required field "RefreshToken.client_id"`)}
 	}
@@ -320,6 +341,10 @@ func (_c *RefreshTokenCreate) createSpec() (*RefreshToken, *sqlgraph.CreateSpec)
 	if id, ok := _c.mutation.ID(); ok {
 		_node.ID = id
 		_spec.ID.Value = id
+	}
+	if value, ok := _c.mutation.State(); ok {
+		_spec.SetField(refreshtoken.FieldState, field.TypeString, value)
+		_node.State = value
 	}
 	if value, ok := _c.mutation.ClientID(); ok {
 		_spec.SetField(refreshtoken.FieldClientID, field.TypeString, value)
