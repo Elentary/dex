@@ -20,7 +20,7 @@ import (
 
 // apiVersion increases every time a new call is added to the API. Clients should use this info
 // to determine if the server supports specific features.
-const apiVersion = 2
+const apiVersion = 3
 
 const (
 	// recCost is the recommended bcrypt cost, which balances hash strength and
@@ -393,51 +393,103 @@ func (d dexAPI) revokeRefresh(ctx context.Context, subject, clientID, refreshID 
 		return false, err
 	}
 
+	session, err := d.s.GetOfflineSessions(ctx, id.UserId, id.ConnId)
+	if errors.Is(err, storage.ErrNotFound) {
+		if refreshID != "" {
+			return d.deleteUnindexedRefresh(ctx, id, clientID, refreshID)
+		}
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if session.UserID != id.UserId || session.ConnID != id.ConnId {
+		return true, nil
+	}
+	ref := session.Refresh[clientID]
+	if ref == nil {
+		if refreshID != "" {
+			return d.deleteUnindexedRefresh(ctx, id, clientID, refreshID)
+		}
+		return true, nil
+	}
 	var ids []string
-	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		ids = nil
-		ref := old.Refresh[clientID]
-		if ref == nil || old.UserID != id.UserId || old.ConnID != id.ConnId {
-			return old, storage.ErrNotFound
+	if refreshID != "" {
+		if ref.Find(refreshID) == nil {
+			return d.deleteUnindexedRefresh(ctx, id, clientID, refreshID)
 		}
-
-		if refreshID == "" {
-			if ref.ID != "" {
-				ids = append(ids, ref.ID)
-			}
-			for grantID := range ref.Independent {
-				ids = append(ids, grantID)
-			}
-			delete(old.Refresh, clientID)
-		} else {
-			if ref.Find(refreshID) == nil {
-				return old, storage.ErrNotFound
-			}
-			ids = append(ids, refreshID)
-			if ref.ID == refreshID {
-				*ref = storage.RefreshTokenRef{ClientID: clientID, Independent: ref.Independent}
-			} else {
-				delete(ref.Independent, refreshID)
-			}
-			if ref.ID == "" && len(ref.Independent) == 0 {
-				delete(old.Refresh, clientID)
-			}
+		ids = append(ids, refreshID)
+	} else {
+		if ref.ID != "" {
+			ids = append(ids, ref.ID)
 		}
-
-		return old, nil
+		for grantID := range ref.Independent {
+			ids = append(ids, grantID)
+		}
+	}
+	if len(ids) == 0 {
+		return true, nil
 	}
 
-	if err := d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, updater); err != nil {
-		if errors.Is(err, storage.ErrNotFound) {
-			return true, nil
+	// Delete the bearer secret before removing its reference. A failed delete
+	// leaves the reference for a retry and cannot be reported as a safe revoke
+	// before rolling back to a binary that does not check index membership.
+	for _, grantID := range ids {
+		row, err := d.s.GetRefresh(ctx, grantID)
+		if err != nil && !errors.Is(err, storage.ErrNotFound) {
+			return false, err
 		}
+		if err == nil {
+			if row.ID != grantID || row.ClientID != clientID || row.ConnectorID != id.ConnId || row.Claims.UserID != id.UserId {
+				return false, fmt.Errorf("refresh token %q does not belong to the requested user and client", grantID)
+			}
+			if err := d.s.DeleteRefresh(ctx, grantID); err != nil && !errors.Is(err, storage.ErrNotFound) {
+				return false, fmt.Errorf("delete refresh token %q: %w", grantID, err)
+			}
+		}
+	}
+
+	err = d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		if old.UserID != id.UserId || old.ConnID != id.ConnId {
+			return old, storage.ErrNotFound
+		}
+		for _, grantID := range ids {
+			removeRefreshRef(&old, clientID, grantID)
+		}
+		if refreshID == "" {
+			if current := old.Refresh[clientID]; current != nil && (current.ID != "" || len(current.Independent) != 0) {
+				return old, errors.New("refresh grants changed during revocation; retry")
+			}
+		}
+		return old, nil
+	})
+	if errors.Is(err, storage.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
 		d.logger.Error("failed to update offline session object", "err", err)
 		return false, err
 	}
+	return false, nil
+}
 
-	// Removing the reference commits the revocation. Row deletion is cleanup.
-	deleteRefreshRows(ctx, d.s, d.logger, ids)
-	return len(ids) == 0, nil
+// A prior interrupted cleanup may have removed the index before deleting the
+// row. A caller with the exact grant ID can retry that physical deletion.
+func (d dexAPI) deleteUnindexedRefresh(ctx context.Context, subject *internal.IDTokenSubject, clientID, refreshID string) (bool, error) {
+	row, err := d.s.GetRefresh(ctx, refreshID)
+	if errors.Is(err, storage.ErrNotFound) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if row.ID != refreshID || row.ClientID != clientID || row.ConnectorID != subject.ConnId || row.Claims.UserID != subject.UserId {
+		return true, nil
+	}
+	if err := d.s.DeleteRefresh(ctx, refreshID); err != nil && !errors.Is(err, storage.ErrNotFound) {
+		return false, fmt.Errorf("delete unindexed refresh token %q: %w", refreshID, err)
+	}
+	return false, nil
 }
 
 func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {

@@ -930,7 +930,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 		return
 	}
 
-	tokenResponse, err := s.exchangeAuthCode(ctx, authCode, client)
+	tokenResponse, err := s.exchangeAuthCode(ctx, authCode, client, nil)
 	if err != nil {
 		s.writeTokenIssueError(ctx, w, err)
 		return
@@ -938,7 +938,7 @@ func (s *Server) handleAuthCode(w http.ResponseWriter, r *http.Request, client s
 	s.writeAccessToken(w, tokenResponse)
 }
 
-func (s *Server) exchangeAuthCode(ctx context.Context, authCode storage.AuthCode, client storage.Client) (*accessTokenResponse, error) {
+func (s *Server) exchangeAuthCode(ctx context.Context, authCode storage.AuthCode, client storage.Client, device *storage.DeviceToken) (*accessTokenResponse, error) {
 	accessToken, _, err := s.newAccessToken(ctx, client.ID, authCode.Claims, authCode.Scopes, authCode.Nonce, authCode.ConnectorID)
 	if err != nil {
 		return nil, fmt.Errorf("create access token: %w", err)
@@ -958,14 +958,14 @@ func (s *Server) exchangeAuthCode(ctx context.Context, authCode storage.AuthCode
 			return nil, fmt.Errorf("get refresh connector: %w", err)
 		}
 		if _, ok := conn.Connector.(connector.RefreshConnector); ok {
-			refreshToken, err = s.issueRefreshToken(ctx, storage.RefreshToken{
+			refreshToken, err = s.issueRefreshTokenForDevice(ctx, storage.RefreshToken{
 				ClientID:      authCode.ClientID,
 				ConnectorID:   authCode.ConnectorID,
 				Scopes:        authCode.Scopes,
 				Claims:        authCode.Claims,
 				Nonce:         authCode.Nonce,
 				ConnectorData: authCode.ConnectorData,
-			}, nil)
+			}, nil, device)
 			if err != nil {
 				return nil, err
 			}

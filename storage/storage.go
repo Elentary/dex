@@ -319,6 +319,11 @@ type RefreshTokenRef struct {
 	// The fields above describe the legacy grant, if ID is non-empty.
 	// Keeping these in the existing refresh map preserves its storage schema.
 	Independent map[string]*RefreshTokenRef `json:"independent,omitempty"`
+
+	// A device grant becomes usable when the device polls its completed response.
+	// PendingUntil lets issuance reclaim a grant that was never delivered.
+	DeviceCode   string    `json:"deviceCode,omitempty"`
+	PendingUntil time.Time `json:"pendingUntil,omitempty"`
 }
 
 // Find returns the exact grant in a client entry, which may be absent.

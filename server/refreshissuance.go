@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
@@ -13,7 +14,15 @@ import (
 
 const refreshTokenLimitDescription = "Refresh token limit reached. Revoke an existing refresh token before signing in again."
 
-var errRefreshTokenLimit = errors.New("refresh token limit reached")
+var (
+	errRefreshTokenLimit  = errors.New("refresh token limit reached")
+	errRefreshStillActive = errors.New("refresh token is still active")
+)
+
+type expiredRefreshRef struct {
+	id      string
+	pending bool
+}
 
 func (s *Server) writeTokenIssueError(ctx context.Context, w http.ResponseWriter, err error) {
 	if errors.Is(err, errRefreshTokenLimit) {
@@ -27,6 +36,10 @@ func (s *Server) writeTokenIssueError(ctx context.Context, w http.ResponseWriter
 // issueRefreshToken stores the token first and registers its ID before handing
 // out the secret. Only tokens with a matching offline-session reference work.
 func (s *Server) issueRefreshToken(ctx context.Context, refresh storage.RefreshToken, offlineConnectorData []byte) (string, error) {
+	return s.issueRefreshTokenForDevice(ctx, refresh, offlineConnectorData, nil)
+}
+
+func (s *Server) issueRefreshTokenForDevice(ctx context.Context, refresh storage.RefreshToken, offlineConnectorData []byte, device *storage.DeviceToken) (string, error) {
 	refresh.ID = storage.NewID()
 	refresh.Token = storage.NewID()
 	refresh.CreatedAt = s.now()
@@ -47,6 +60,18 @@ func (s *Server) issueRefreshToken(ctx context.Context, refresh storage.RefreshT
 		LastUsed:  refresh.LastUsed,
 	}
 	limit := s.refreshTokenLimits[refresh.ClientID]
+	if device != nil && limit > 0 {
+		ref.DeviceCode = device.DeviceCode
+		ref.PendingUntil = device.Expiry
+	}
+	var expiredIDs []expiredRefreshRef
+	if limit > 0 {
+		expiredIDs, err = s.expiredRefreshTokenIDs(ctx, userID, connID, refresh.ClientID)
+		if err != nil {
+			deleteRefreshRows(ctx, s.storage, s.logger, []string{ref.ID})
+			return "", fmt.Errorf("check existing refresh tokens: %w", err)
+		}
+	}
 	var removed []string
 	register := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
 		// Retrying storage backends can run this callback more than once.
@@ -69,7 +94,19 @@ func (s *Server) issueRefreshToken(ctx context.Context, refresh storage.RefreshT
 			legacy.Independent = client.Independent
 			client = &legacy
 		} else {
-			removed = s.pruneExpiredRefreshRefs(client)
+			for _, candidate := range expiredIDs {
+				current := old.Refresh[ref.ClientID].Find(candidate.id)
+				if candidate.pending && (current == nil || current.PendingUntil.IsZero() || !s.now().After(current.PendingUntil)) {
+					continue
+				}
+				if removeRefreshRef(&old, ref.ClientID, candidate.id) {
+					removed = append(removed, candidate.id)
+				}
+			}
+			client = old.Refresh[ref.ClientID]
+			if client == nil {
+				client = &storage.RefreshTokenRef{ClientID: ref.ClientID}
+			}
 			count := len(client.Independent)
 			if client.ID != "" {
 				count++
@@ -92,6 +129,7 @@ func (s *Server) issueRefreshToken(ctx context.Context, refresh storage.RefreshT
 	if errors.Is(err, storage.ErrNotFound) {
 		session, registerErr := register(storage.OfflineSessions{UserID: userID, ConnID: connID})
 		if registerErr != nil {
+			deleteRefreshRows(ctx, s.storage, s.logger, []string{ref.ID})
 			return "", registerErr
 		}
 		err = s.storage.CreateOfflineSessions(ctx, session)
@@ -104,11 +142,17 @@ func (s *Server) issueRefreshToken(ctx context.Context, refresh storage.RefreshT
 		return "", errRefreshTokenLimit
 	}
 	if err != nil {
-		// A write can commit even if its acknowledgement is lost. Confirm
-		// membership before returning the token. Keep the new row if the
-		// registration outcome is unknown.
-		session, readErr := s.storage.GetOfflineSessions(ctx, userID, connID)
-		if readErr != nil || session.UserID != userID || session.ConnID != connID || session.Refresh[ref.ClientID].Find(ref.ID) == nil {
+		// A write can commit even if its acknowledgement is lost. Read the
+		// index before cleaning up a token that was never delivered.
+		checkCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		session, readErr := s.storage.GetOfflineSessions(checkCtx, userID, connID)
+		if errors.Is(readErr, storage.ErrNotFound) ||
+			readErr == nil && (session.UserID != userID || session.ConnID != connID || session.Refresh[ref.ClientID].Find(ref.ID) == nil) {
+			deleteRefreshRows(checkCtx, s.storage, s.logger, []string{ref.ID})
+			return "", fmt.Errorf("register refresh token: %w", err)
+		}
+		if readErr != nil {
 			return "", fmt.Errorf("register refresh token: %w", err)
 		}
 	}
@@ -116,32 +160,110 @@ func (s *Server) issueRefreshToken(ctx context.Context, refresh storage.RefreshT
 	return raw, nil
 }
 
-// Expiration uses the last successful use recorded on the reference. Pruning
-// and extending that lifetime are serialized by the same offline-session update.
-func (s *Server) refreshRefExpired(ref *storage.RefreshTokenRef) bool {
-	return !ref.CreatedAt.IsZero() && s.refreshTokenPolicy.CompletelyExpired(ref.CreatedAt) ||
-		!ref.LastUsed.IsZero() && s.refreshTokenPolicy.ExpiredBecauseUnused(ref.LastUsed)
+func removeRefreshRef(session *storage.OfflineSessions, clientID, id string) bool {
+	client := session.Refresh[clientID]
+	if client.Find(id) == nil {
+		return false
+	}
+	if client.ID == id {
+		*client = storage.RefreshTokenRef{ClientID: clientID, Independent: client.Independent}
+	} else {
+		delete(client.Independent, id)
+	}
+	if client.ID == "" && len(client.Independent) == 0 {
+		delete(session.Refresh, clientID)
+	}
+	return true
 }
 
-func (s *Server) pruneExpiredRefreshRefs(client *storage.RefreshTokenRef) []string {
-	var removed []string
-	if client.ID != "" && s.refreshRefExpired(client) {
-		removed = append(removed, client.ID)
-		*client = storage.RefreshTokenRef{ClientID: client.ClientID, Independent: client.Independent}
+func (s *Server) refreshRowExpired(row storage.RefreshToken) bool {
+	return s.refreshTokenPolicy.CompletelyExpired(row.CreatedAt) ||
+		s.refreshTokenPolicy.ExpiredBecauseUnused(row.LastUsed)
+}
+
+// expiredRefreshTokenIDs checks the canonical rows outside the offline-session
+// updater. Rotating the secret atomically prevents an in-flight refresh from
+// reviving a row after its reference is removed.
+func (s *Server) expiredRefreshTokenIDs(ctx context.Context, userID, connID, clientID string) ([]expiredRefreshRef, error) {
+	session, err := s.storage.GetOfflineSessions(ctx, userID, connID)
+	if errors.Is(err, storage.ErrNotFound) {
+		return nil, nil
 	}
-	for id, ref := range client.Independent {
-		if ref == nil || s.refreshRefExpired(ref) {
-			delete(client.Independent, id)
-			removed = append(removed, id)
+	if err != nil {
+		return nil, err
+	}
+	if session.UserID != userID || session.ConnID != connID {
+		return nil, errors.New("offline session belongs to another identity")
+	}
+	client := session.Refresh[clientID]
+	if client == nil {
+		return nil, nil
+	}
+	var refs []*storage.RefreshTokenRef
+	if client.ID != "" {
+		refs = append(refs, client)
+	}
+	for _, ref := range client.Independent {
+		if ref != nil {
+			refs = append(refs, ref)
 		}
 	}
-	return removed
+	var expired []expiredRefreshRef
+	for _, ref := range refs {
+		id := ref.ID
+		if !ref.PendingUntil.IsZero() {
+			if s.now().After(ref.PendingUntil) {
+				expired = append(expired, expiredRefreshRef{id: id, pending: true})
+			}
+			continue
+		}
+		row, err := s.storage.GetRefresh(ctx, id)
+		if errors.Is(err, storage.ErrNotFound) {
+			expired = append(expired, expiredRefreshRef{id: id})
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if row.ID != id || row.ClientID != clientID || row.ConnectorID != connID || row.Claims.UserID != userID {
+			return nil, fmt.Errorf("refresh token %q belongs to another identity", id)
+		}
+		if !s.refreshRowExpired(row) {
+			continue
+		}
+		retiredSecret := storage.NewID()
+		err = s.storage.UpdateRefreshToken(ctx, id, func(old storage.RefreshToken) (storage.RefreshToken, error) {
+			if old.ID != id {
+				return old, storage.ErrNotFound
+			}
+			if old.ClientID != clientID || old.ConnectorID != connID || old.Claims.UserID != userID {
+				return old, fmt.Errorf("refresh token %q changed owner", id)
+			}
+			if !s.refreshRowExpired(old) {
+				return old, errRefreshStillActive
+			}
+			old.Token = retiredSecret
+			old.ObsoleteToken = ""
+			return old, nil
+		})
+		switch {
+		case errors.Is(err, errRefreshStillActive):
+			continue
+		case err == nil, errors.Is(err, storage.ErrNotFound):
+			expired = append(expired, expiredRefreshRef{id: id})
+		default:
+			return nil, err
+		}
+	}
+	return expired, nil
 }
 
 func deleteRefreshRows(ctx context.Context, store storage.Storage, logger *slog.Logger, ids []string) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
 	for _, id := range ids {
-		if err := store.DeleteRefresh(ctx, id); err != nil && !errors.Is(err, storage.ErrNotFound) {
-			logger.ErrorContext(ctx, "failed to delete unindexed refresh token", "token_id", id, "err", err)
+		if err := store.DeleteRefresh(cleanupCtx, id); err != nil && !errors.Is(err, storage.ErrNotFound) {
+			logger.ErrorContext(cleanupCtx, "failed to delete unindexed refresh token", "token_id", id, "err", err)
 		}
 	}
 }

@@ -617,7 +617,10 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 				if ref.Independent == nil {
 					ref.Independent = make(map[string]*storage.RefreshTokenRef)
 				}
-				ref.Independent[id] = &storage.RefreshTokenRef{ID: id, ClientID: tokenRef.ClientID, CreatedAt: tokenRef.CreatedAt}
+				ref.Independent[id] = &storage.RefreshTokenRef{
+					ID: id, ClientID: tokenRef.ClientID, CreatedAt: tokenRef.CreatedAt,
+					DeviceCode: id, PendingUntil: tokenRef.CreatedAt.Add(time.Minute),
+				}
 				return old, nil
 			})
 		}(ids[i])
@@ -635,6 +638,8 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 	require.Len(t, ref.Independent, len(ids))
 	for _, id := range ids {
 		require.NotNil(t, ref.Find(id))
+		require.Equal(t, id, ref.Find(id).DeviceCode)
+		require.Equal(t, tokenRef.CreatedAt.Add(time.Minute), ref.Find(id).PendingUntil)
 	}
 
 	if err := s.DeleteOfflineSessions(ctx, session1.UserID, session1.ConnID); err != nil {

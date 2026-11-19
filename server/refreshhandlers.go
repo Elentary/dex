@@ -125,16 +125,10 @@ func (s *Server) getRefreshTokenFromStorage(ctx context.Context, clientID *strin
 	if ref == nil || session.UserID != refresh.Claims.UserID || session.ConnID != refresh.ConnectorID {
 		return nil, invalidErr
 	}
-	// Older stored references may lack timestamps. Keep using the token's
-	// timestamps for those fields until the reference has been updated.
-	snapshot := *ref
-	if snapshot.CreatedAt.IsZero() {
-		snapshot.CreatedAt = refresh.CreatedAt
+	if !ref.PendingUntil.IsZero() {
+		return nil, invalidErr
 	}
-	if snapshot.LastUsed.IsZero() {
-		snapshot.LastUsed = refresh.LastUsed
-	}
-	if s.refreshRefExpired(&snapshot) {
+	if s.refreshRowExpired(refresh) {
 		s.logger.ErrorContext(ctx, "refresh token expired", "token_id", refresh.ID)
 		return nil, expiredErr
 	}
@@ -214,10 +208,6 @@ func (s *Server) updateOfflineSession(ctx context.Context, refresh *storage.Refr
 		if ref == nil || old.UserID != refresh.Claims.UserID || old.ConnID != refresh.ConnectorID {
 			return old, invalidErr
 		}
-		if s.refreshRefExpired(ref) {
-			return old, expiredErr
-		}
-
 		if ref.LastUsed.Before(lastUsed) {
 			ref.LastUsed = lastUsed
 		}
@@ -273,6 +263,13 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 		lastUsed = s.now()
 		rotationEnabled := s.refreshTokenPolicy.RotationEnabled()
 		reusingAllowed := s.refreshTokenPolicy.AllowedToReuse(old.LastUsed)
+		if s.refreshRowExpired(old) {
+			return old, expiredErr
+		}
+		if old.Token != rCtx.requestToken.Token &&
+			(!rotationEnabled || !reusingAllowed || old.ObsoleteToken != rCtx.requestToken.Token || old.ObsoleteToken == "") {
+			return old, invalidErr
+		}
 
 		switch {
 		case !rotationEnabled && reusingAllowed:
@@ -336,6 +333,12 @@ func (s *Server) updateRefreshToken(ctx context.Context, rCtx *refreshContext) (
 	err := s.storage.UpdateRefreshToken(ctx, rCtx.storageToken.ID, refreshTokenUpdater)
 	if errors.Is(err, storage.ErrNotFound) {
 		return nil, ident, invalidErr
+	}
+	if errors.Is(err, invalidErr) {
+		return nil, ident, invalidErr
+	}
+	if errors.Is(err, expiredErr) {
+		return nil, ident, expiredErr
 	}
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to update refresh token", "err", err)
