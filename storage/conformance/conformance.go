@@ -5,6 +5,7 @@ import (
 	"context"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -600,6 +601,41 @@ func testOfflineSessionCRUD(t *testing.T, s storage.Storage) {
 	}
 
 	getAndCompare(userID1, "Conn1", session1)
+
+	// Exercise concurrent updates to additional grants on the same client entry.
+	// All backends must preserve both the old token and every newly written grant.
+	ids := make([]string, 4)
+	var wg sync.WaitGroup
+	results := make(chan error, len(ids))
+	for i := range ids {
+		ids[i] = storage.NewID()
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			results <- s.UpdateOfflineSessions(ctx, userID1, "Conn1", func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+				ref := old.Refresh[tokenRef.ClientID]
+				if ref.Independent == nil {
+					ref.Independent = make(map[string]*storage.RefreshTokenRef)
+				}
+				ref.Independent[id] = &storage.RefreshTokenRef{ID: id, ClientID: tokenRef.ClientID, CreatedAt: tokenRef.CreatedAt}
+				return old, nil
+			})
+		}(ids[i])
+	}
+	wg.Wait()
+	close(results)
+	for err := range results {
+		require.NoError(t, err)
+	}
+	got, err := s.GetOfflineSessions(ctx, userID1, "Conn1")
+	require.NoError(t, err)
+	ref := got.Refresh[tokenRef.ClientID]
+	require.NotNil(t, ref)
+	require.Equal(t, id, ref.ID)
+	require.Len(t, ref.Independent, len(ids))
+	for _, id := range ids {
+		require.NotNil(t, ref.Find(id))
+	}
 
 	if err := s.DeleteOfflineSessions(ctx, session1.UserID, session1.ConnID); err != nil {
 		t.Fatalf("failed to delete offline session: %v", err)

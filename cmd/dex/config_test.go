@@ -86,6 +86,7 @@ frontend:
 
 staticClients:
 - id: example-app
+  refreshTokenLimit: 5
   redirectURIs:
   - 'http://127.0.0.1:5555/callback'
   name: 'Example App'
@@ -167,14 +168,17 @@ additionalFeatures: [
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
+		StaticClients: []staticClient{
 			{
-				ID:     "example-app",
-				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
-				Name:   "Example App",
-				RedirectURIs: []string{
-					"http://127.0.0.1:5555/callback",
+				Client: storage.Client{
+					ID:     "example-app",
+					Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
+					Name:   "Example App",
+					RedirectURIs: []string{
+						"http://127.0.0.1:5555/callback",
+					},
 				},
+				RefreshTokenLimit: 5,
 			},
 		},
 		OAuth2: OAuth2{
@@ -385,13 +389,15 @@ logger:
 				"foo": "bar",
 			},
 		},
-		StaticClients: []storage.Client{
+		StaticClients: []staticClient{
 			{
-				ID:     "example-app",
-				Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
-				Name:   "Example App",
-				RedirectURIs: []string{
-					"http://127.0.0.1:5555/callback",
+				Client: storage.Client{
+					ID:     "example-app",
+					Secret: "ZXhhbXBsZS1hcHAtc2VjcmV0",
+					Name:   "Example App",
+					RedirectURIs: []string{
+						"http://127.0.0.1:5555/callback",
+					},
 				},
 			},
 		},

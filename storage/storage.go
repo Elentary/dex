@@ -314,6 +314,25 @@ type RefreshTokenRef struct {
 
 	CreatedAt time.Time
 	LastUsed  time.Time
+
+	// Independent stores additional grants by token ID on the client entry.
+	// The fields above describe the legacy grant, if ID is non-empty.
+	// Keeping these in the existing refresh map preserves its storage schema.
+	Independent map[string]*RefreshTokenRef `json:"independent,omitempty"`
+}
+
+// Find returns the exact grant in a client entry, which may be absent.
+func (r *RefreshTokenRef) Find(id string) *RefreshTokenRef {
+	if r == nil || id == "" {
+		return nil
+	}
+	if r.ID == id {
+		return r
+	}
+	if ref := r.Independent[id]; ref != nil && ref.ID == id {
+		return ref
+	}
+	return nil
 }
 
 // OfflineSessions objects are sessions pertaining to users with refresh tokens.

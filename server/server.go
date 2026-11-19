@@ -103,6 +103,9 @@ type Config struct {
 
 	// Refresh token expiration settings
 	RefreshTokenPolicy *RefreshTokenPolicy
+	// RefreshTokenLimits enables independent offline grants for the given client IDs.
+	// A zero or omitted limit keeps the legacy single-grant issuance policy.
+	RefreshTokenLimits map[string]uint32
 
 	// If set, the server will use this connector to handle password grants
 	PasswordConnector string
@@ -194,6 +197,7 @@ type Server struct {
 	deviceRequestsValidFor time.Duration
 
 	refreshTokenPolicy *RefreshTokenPolicy
+	refreshTokenLimits map[string]uint32
 
 	logger *slog.Logger
 }
@@ -306,6 +310,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 		authRequestsValidFor:   value(c.AuthRequestsValidFor, 24*time.Hour),
 		deviceRequestsValidFor: value(c.DeviceRequestsValidFor, 5*time.Minute),
 		refreshTokenPolicy:     c.RefreshTokenPolicy,
+		refreshTokenLimits:     c.RefreshTokenLimits,
 		skipApproval:           c.SkipApprovalScreen,
 		alwaysShowLogin:        c.AlwaysShowLoginScreen,
 		now:                    now,

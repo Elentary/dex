@@ -41,7 +41,7 @@ type Config struct {
 
 	// StaticClients cause the server to use this list of clients rather than
 	// querying the storage. Write operations, like creating a client, will fail.
-	StaticClients []storage.Client `json:"staticClients"`
+	StaticClients []staticClient `json:"staticClients"`
 
 	// If enabled, the server will maintain a list of passwords which can be used
 	// to identify a user.
@@ -89,6 +89,11 @@ func (c Config) Validate() error {
 		return fmt.Errorf("invalid Config:\n\t-\t%s", strings.Join(checkErrors, "\n\t-\t"))
 	}
 	return nil
+}
+
+type staticClient struct {
+	storage.Client
+	RefreshTokenLimit uint32 `json:"refreshTokenLimit,omitempty"`
 }
 
 type password storage.Password

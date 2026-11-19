@@ -9,6 +9,8 @@ import (
 	"strconv"
 
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/dexidp/dex/api/v2"
 	"github.com/dexidp/dex/pkg/featureflags"
@@ -338,71 +340,104 @@ func (d dexAPI) ListRefresh(ctx context.Context, req *api.ListRefreshReq) (*api.
 		return nil, err
 	}
 
-	refreshTokenRefs := make([]*api.RefreshTokenRef, 0, len(offlineSessions.Refresh))
-	for _, session := range offlineSessions.Refresh {
-		r := api.RefreshTokenRef{
-			Id:        session.ID,
-			ClientId:  session.ClientID,
-			CreatedAt: session.CreatedAt.Unix(),
-			LastUsed:  session.LastUsed.Unix(),
-		}
-		refreshTokenRefs = append(refreshTokenRefs, &r)
+	if offlineSessions.UserID != id.UserId || offlineSessions.ConnID != id.ConnId {
+		return &api.ListRefreshResp{}, nil
 	}
 
-	return &api.ListRefreshResp{
-		RefreshTokens: refreshTokenRefs,
-	}, nil
+	var refs []*api.RefreshTokenRef
+	addRef := func(clientID string, ref *storage.RefreshTokenRef) {
+		if ref != nil && ref.ID != "" {
+			refs = append(refs, &api.RefreshTokenRef{
+				Id:        ref.ID,
+				ClientId:  clientID,
+				CreatedAt: ref.CreatedAt.Unix(),
+				LastUsed:  ref.LastUsed.Unix(),
+			})
+		}
+	}
+	for clientID, ref := range offlineSessions.Refresh {
+		if ref == nil {
+			continue
+		}
+		addRef(clientID, ref)
+		for _, grant := range ref.Independent {
+			addRef(clientID, grant)
+		}
+	}
+	return &api.ListRefreshResp{RefreshTokens: refs}, nil
 }
 
 func (d dexAPI) RevokeRefresh(ctx context.Context, req *api.RevokeRefreshReq) (*api.RevokeRefreshResp, error) {
-	id := new(internal.IDTokenSubject)
-	if err := internal.Unmarshal(req.UserId, id); err != nil {
-		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
+	notFound, err := d.revokeRefresh(ctx, req.UserId, req.ClientId, "")
+	if err != nil {
 		return nil, err
 	}
+	return &api.RevokeRefreshResp{NotFound: notFound}, nil
+}
 
-	var (
-		refreshID string
-		notFound  bool
-	)
+func (d dexAPI) RevokeRefreshToken(ctx context.Context, req *api.RevokeRefreshTokenReq) (*api.RevokeRefreshTokenResp, error) {
+	if req.RefreshTokenId == "" {
+		return nil, status.Error(codes.InvalidArgument, "refresh_token_id is required")
+	}
+	notFound, err := d.revokeRefresh(ctx, req.UserId, req.ClientId, req.RefreshTokenId)
+	if err != nil {
+		return nil, err
+	}
+	return &api.RevokeRefreshTokenResp{NotFound: notFound}, nil
+}
+
+func (d dexAPI) revokeRefresh(ctx context.Context, subject, clientID, refreshID string) (bool, error) {
+	id := new(internal.IDTokenSubject)
+	if err := internal.Unmarshal(subject, id); err != nil {
+		d.logger.Error("failed to unmarshal ID Token subject", "err", err)
+		return false, err
+	}
+
+	var ids []string
 	updater := func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
-		refreshRef := old.Refresh[req.ClientId]
-		if refreshRef == nil || refreshRef.ID == "" {
-			d.logger.Error("refresh token issued to client not found for deletion", "client_id", req.ClientId, "user_id", id.UserId)
-			notFound = true
+		ids = nil
+		ref := old.Refresh[clientID]
+		if ref == nil || old.UserID != id.UserId || old.ConnID != id.ConnId {
 			return old, storage.ErrNotFound
 		}
 
-		refreshID = refreshRef.ID
-
-		// Remove entry from Refresh list of the OfflineSession object.
-		delete(old.Refresh, req.ClientId)
+		if refreshID == "" {
+			if ref.ID != "" {
+				ids = append(ids, ref.ID)
+			}
+			for grantID := range ref.Independent {
+				ids = append(ids, grantID)
+			}
+			delete(old.Refresh, clientID)
+		} else {
+			if ref.Find(refreshID) == nil {
+				return old, storage.ErrNotFound
+			}
+			ids = append(ids, refreshID)
+			if ref.ID == refreshID {
+				*ref = storage.RefreshTokenRef{ClientID: clientID, Independent: ref.Independent}
+			} else {
+				delete(ref.Independent, refreshID)
+			}
+			if ref.ID == "" && len(ref.Independent) == 0 {
+				delete(old.Refresh, clientID)
+			}
+		}
 
 		return old, nil
 	}
 
 	if err := d.s.UpdateOfflineSessions(ctx, id.UserId, id.ConnId, updater); err != nil {
-		if err == storage.ErrNotFound {
-			return &api.RevokeRefreshResp{NotFound: true}, nil
+		if errors.Is(err, storage.ErrNotFound) {
+			return true, nil
 		}
 		d.logger.Error("failed to update offline session object", "err", err)
-		return nil, err
+		return false, err
 	}
 
-	if notFound {
-		return &api.RevokeRefreshResp{NotFound: true}, nil
-	}
-
-	// Delete the refresh token from the storage
-	//
-	// TODO(ericchiang): we don't have any good recourse if this call fails.
-	// Consider garbage collection of refresh tokens with no associated ref.
-	if err := d.s.DeleteRefresh(ctx, refreshID); err != nil {
-		d.logger.Error("failed to delete refresh token", "err", err)
-		return nil, err
-	}
-
-	return &api.RevokeRefreshResp{}, nil
+	// Removing the reference commits the revocation. Row deletion is cleanup.
+	deleteRefreshRows(ctx, d.s, d.logger, ids)
+	return len(ids) == 0, nil
 }
 
 func (d dexAPI) CreateConnector(ctx context.Context, req *api.CreateConnectorReq) (*api.CreateConnectorResp, error) {

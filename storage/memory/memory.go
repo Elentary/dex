@@ -2,6 +2,7 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"strings"
@@ -166,10 +167,33 @@ func (s *memStorage) CreateOfflineSessions(ctx context.Context, o storage.Offlin
 		if _, ok := s.offlineSessions[id]; ok {
 			err = storage.ErrAlreadyExists
 		} else {
-			s.offlineSessions[id] = o
+			s.offlineSessions[id] = cloneOfflineSession(o)
 		}
 	})
 	return
+}
+
+func cloneOfflineSession(o storage.OfflineSessions) storage.OfflineSessions {
+	o.ConnectorData = bytes.Clone(o.ConnectorData)
+	o.Refresh = cloneRefreshRefs(o.Refresh)
+	return o
+}
+
+func cloneRefreshRefs(refs map[string]*storage.RefreshTokenRef) map[string]*storage.RefreshTokenRef {
+	if refs == nil {
+		return nil
+	}
+	copyRefs := make(map[string]*storage.RefreshTokenRef, len(refs))
+	for key, ref := range refs {
+		if ref == nil {
+			copyRefs[key] = nil
+			continue
+		}
+		copyRef := *ref
+		copyRef.Independent = cloneRefreshRefs(ref.Independent)
+		copyRefs[key] = &copyRef
+	}
+	return copyRefs
 }
 
 func (s *memStorage) CreateConnector(ctx context.Context, connector storage.Connector) (err error) {
@@ -253,6 +277,7 @@ func (s *memStorage) GetOfflineSessions(ctx context.Context, userID string, conn
 			err = storage.ErrNotFound
 			return
 		}
+		o = cloneOfflineSession(o)
 	})
 	return
 }
@@ -463,8 +488,8 @@ func (s *memStorage) UpdateOfflineSessions(ctx context.Context, userID string, c
 			err = storage.ErrNotFound
 			return
 		}
-		if r, err = updater(r); err == nil {
-			s.offlineSessions[id] = r
+		if r, err = updater(cloneOfflineSession(r)); err == nil {
+			s.offlineSessions[id] = cloneOfflineSession(r)
 		}
 	})
 	return
