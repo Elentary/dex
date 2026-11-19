@@ -19,23 +19,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Dex_GetClient_FullMethodName       = "/api.Dex/GetClient"
-	Dex_CreateClient_FullMethodName    = "/api.Dex/CreateClient"
-	Dex_UpdateClient_FullMethodName    = "/api.Dex/UpdateClient"
-	Dex_DeleteClient_FullMethodName    = "/api.Dex/DeleteClient"
-	Dex_CreatePassword_FullMethodName  = "/api.Dex/CreatePassword"
-	Dex_UpdatePassword_FullMethodName  = "/api.Dex/UpdatePassword"
-	Dex_DeletePassword_FullMethodName  = "/api.Dex/DeletePassword"
-	Dex_ListPasswords_FullMethodName   = "/api.Dex/ListPasswords"
-	Dex_CreateConnector_FullMethodName = "/api.Dex/CreateConnector"
-	Dex_UpdateConnector_FullMethodName = "/api.Dex/UpdateConnector"
-	Dex_DeleteConnector_FullMethodName = "/api.Dex/DeleteConnector"
-	Dex_ListConnectors_FullMethodName  = "/api.Dex/ListConnectors"
-	Dex_GetVersion_FullMethodName      = "/api.Dex/GetVersion"
-	Dex_GetDiscovery_FullMethodName    = "/api.Dex/GetDiscovery"
-	Dex_ListRefresh_FullMethodName     = "/api.Dex/ListRefresh"
-	Dex_RevokeRefresh_FullMethodName   = "/api.Dex/RevokeRefresh"
-	Dex_VerifyPassword_FullMethodName  = "/api.Dex/VerifyPassword"
+	Dex_GetClient_FullMethodName          = "/api.Dex/GetClient"
+	Dex_CreateClient_FullMethodName       = "/api.Dex/CreateClient"
+	Dex_UpdateClient_FullMethodName       = "/api.Dex/UpdateClient"
+	Dex_DeleteClient_FullMethodName       = "/api.Dex/DeleteClient"
+	Dex_CreatePassword_FullMethodName     = "/api.Dex/CreatePassword"
+	Dex_UpdatePassword_FullMethodName     = "/api.Dex/UpdatePassword"
+	Dex_DeletePassword_FullMethodName     = "/api.Dex/DeletePassword"
+	Dex_ListPasswords_FullMethodName      = "/api.Dex/ListPasswords"
+	Dex_CreateConnector_FullMethodName    = "/api.Dex/CreateConnector"
+	Dex_UpdateConnector_FullMethodName    = "/api.Dex/UpdateConnector"
+	Dex_DeleteConnector_FullMethodName    = "/api.Dex/DeleteConnector"
+	Dex_ListConnectors_FullMethodName     = "/api.Dex/ListConnectors"
+	Dex_GetVersion_FullMethodName         = "/api.Dex/GetVersion"
+	Dex_GetDiscovery_FullMethodName       = "/api.Dex/GetDiscovery"
+	Dex_ListRefresh_FullMethodName        = "/api.Dex/ListRefresh"
+	Dex_RevokeRefresh_FullMethodName      = "/api.Dex/RevokeRefresh"
+	Dex_VerifyPassword_FullMethodName     = "/api.Dex/VerifyPassword"
+	Dex_RevokeRefreshToken_FullMethodName = "/api.Dex/RevokeRefreshToken"
 )
 
 // DexClient is the client API for Dex service.
@@ -74,12 +75,12 @@ type DexClient interface {
 	GetDiscovery(ctx context.Context, in *DiscoveryReq, opts ...grpc.CallOption) (*DiscoveryResp, error)
 	// ListRefresh lists all the refresh token entries for a particular user.
 	ListRefresh(ctx context.Context, in *ListRefreshReq, opts ...grpc.CallOption) (*ListRefreshResp, error)
-	// RevokeRefresh revokes the refresh token for the provided user-client pair.
-	//
-	// Note that each user-client pair can have only one refresh token at a time.
+	// RevokeRefresh revokes all refresh tokens for the provided user-client pair.
 	RevokeRefresh(ctx context.Context, in *RevokeRefreshReq, opts ...grpc.CallOption) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(ctx context.Context, in *VerifyPasswordReq, opts ...grpc.CallOption) (*VerifyPasswordResp, error)
+	// RevokeRefreshToken revokes one refresh token for the provided user-client pair.
+	RevokeRefreshToken(ctx context.Context, in *RevokeRefreshTokenReq, opts ...grpc.CallOption) (*RevokeRefreshTokenResp, error)
 }
 
 type dexClient struct {
@@ -260,6 +261,16 @@ func (c *dexClient) VerifyPassword(ctx context.Context, in *VerifyPasswordReq, o
 	return out, nil
 }
 
+func (c *dexClient) RevokeRefreshToken(ctx context.Context, in *RevokeRefreshTokenReq, opts ...grpc.CallOption) (*RevokeRefreshTokenResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RevokeRefreshTokenResp)
+	err := c.cc.Invoke(ctx, Dex_RevokeRefreshToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DexServer is the server API for Dex service.
 // All implementations must embed UnimplementedDexServer
 // for forward compatibility.
@@ -296,12 +307,12 @@ type DexServer interface {
 	GetDiscovery(context.Context, *DiscoveryReq) (*DiscoveryResp, error)
 	// ListRefresh lists all the refresh token entries for a particular user.
 	ListRefresh(context.Context, *ListRefreshReq) (*ListRefreshResp, error)
-	// RevokeRefresh revokes the refresh token for the provided user-client pair.
-	//
-	// Note that each user-client pair can have only one refresh token at a time.
+	// RevokeRefresh revokes all refresh tokens for the provided user-client pair.
 	RevokeRefresh(context.Context, *RevokeRefreshReq) (*RevokeRefreshResp, error)
 	// VerifyPassword returns whether a password matches a hash for a specific email or not.
 	VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error)
+	// RevokeRefreshToken revokes one refresh token for the provided user-client pair.
+	RevokeRefreshToken(context.Context, *RevokeRefreshTokenReq) (*RevokeRefreshTokenResp, error)
 	mustEmbedUnimplementedDexServer()
 }
 
@@ -362,6 +373,9 @@ func (UnimplementedDexServer) RevokeRefresh(context.Context, *RevokeRefreshReq) 
 }
 func (UnimplementedDexServer) VerifyPassword(context.Context, *VerifyPasswordReq) (*VerifyPasswordResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyPassword not implemented")
+}
+func (UnimplementedDexServer) RevokeRefreshToken(context.Context, *RevokeRefreshTokenReq) (*RevokeRefreshTokenResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeRefreshToken not implemented")
 }
 func (UnimplementedDexServer) mustEmbedUnimplementedDexServer() {}
 func (UnimplementedDexServer) testEmbeddedByValue()             {}
@@ -690,6 +704,24 @@ func _Dex_VerifyPassword_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Dex_RevokeRefreshToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeRefreshTokenReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DexServer).RevokeRefreshToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Dex_RevokeRefreshToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DexServer).RevokeRefreshToken(ctx, req.(*RevokeRefreshTokenReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Dex_ServiceDesc is the grpc.ServiceDesc for Dex service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -764,6 +796,10 @@ var Dex_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VerifyPassword",
 			Handler:    _Dex_VerifyPassword_Handler,
+		},
+		{
+			MethodName: "RevokeRefreshToken",
+			Handler:    _Dex_RevokeRefreshToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // CreateOfflineSessions saves provided offline session into the database.
@@ -53,6 +54,12 @@ func (d *Database) DeleteOfflineSessions(ctx context.Context, userID, connID str
 
 // UpdateOfflineSessions changes an offline session by user id and connector id using an updater function.
 func (d *Database) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
+	return sqlretry.Do(ctx, func() error {
+		return d.updateOfflineSessions(ctx, userID, connID, updater)
+	})
+}
+
+func (d *Database) updateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	id := offlineSessionID(userID, connID, d.hasher)
 
 	tx, err := d.BeginTx(ctx)

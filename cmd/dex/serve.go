@@ -204,8 +204,10 @@ func runServe(options serveOptions) error {
 
 	logger.Info("config storage", "storage_type", c.Storage.Type)
 
+	refreshTokenLimits := make(map[string]uint32)
 	if len(c.StaticClients) > 0 {
-		for i, client := range c.StaticClients {
+		clients := make([]storage.Client, 0, len(c.StaticClients))
+		for _, client := range c.StaticClients {
 			if client.Name == "" {
 				return fmt.Errorf("invalid config: Name field is required for a client")
 			}
@@ -216,7 +218,7 @@ func runServe(options serveOptions) error {
 				if client.ID != "" {
 					return fmt.Errorf("invalid config: ID and IDEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].ID = os.Getenv(client.IDEnv)
+				client.ID = os.Getenv(client.IDEnv)
 			}
 			if client.Secret == "" && client.SecretEnv == "" && !client.Public {
 				return fmt.Errorf("invalid config: Secret or SecretEnv field is required for client %q", client.ID)
@@ -225,11 +227,13 @@ func runServe(options serveOptions) error {
 				if client.Secret != "" {
 					return fmt.Errorf("invalid config: Secret and SecretEnv fields are exclusive for client %q", client.ID)
 				}
-				c.StaticClients[i].Secret = os.Getenv(client.SecretEnv)
+				client.Secret = os.Getenv(client.SecretEnv)
 			}
+			clients = append(clients, client.Client)
+			refreshTokenLimits[client.ID] = client.RefreshTokenLimit
 			logger.Info("config static client", "client_name", client.Name)
 		}
-		s = storage.WithStaticClients(s, c.StaticClients)
+		s = storage.WithStaticClients(s, clients)
 	}
 	if len(c.StaticPasswords) > 0 {
 		passwords := make([]storage.Password, len(c.StaticPasswords))
@@ -347,6 +351,7 @@ func runServe(options serveOptions) error {
 	}
 
 	serverConfig.RefreshTokenPolicy = refreshTokenPolicy
+	serverConfig.RefreshTokenLimits = refreshTokenLimits
 
 	serverConfig.RealIPHeader = c.Web.ClientRemoteIP.Header
 	serverConfig.TrustedRealIPCIDRs, err = c.Web.ClientRemoteIP.ParseTrustedProxies()

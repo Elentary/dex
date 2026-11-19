@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dexidp/dex/storage"
+	"github.com/dexidp/dex/storage/sqlretry"
 )
 
 // TODO(ericchiang): The update, insert, and select methods queries are all
@@ -712,8 +713,14 @@ func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessi
 }
 
 func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
+	return sqlretry.Do(ctx, func() error {
+		return c.updateOfflineSessions(userID, connID, updater)
+	})
+}
+
+func (c *conn) updateOfflineSessions(userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	return c.ExecTx(func(tx *trans) error {
-		s, err := getOfflineSessions(ctx, tx, userID, connID)
+		s, err := getOfflineSessions(tx, userID, connID, c.flavor.lockOfflineSession)
 		if err != nil {
 			return err
 		}
@@ -732,23 +739,28 @@ func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID 
 			encoder(newSession.Refresh), newSession.ConnectorData, s.UserID, s.ConnID,
 		)
 		if err != nil {
-			return fmt.Errorf("update offline session: %v", err)
+			return fmt.Errorf("update offline session: %w", err)
 		}
 		return nil
 	})
 }
 
 func (c *conn) GetOfflineSessions(ctx context.Context, userID string, connID string) (storage.OfflineSessions, error) {
-	return getOfflineSessions(ctx, c, userID, connID)
+	return getOfflineSessions(c, userID, connID, false)
 }
 
-func getOfflineSessions(ctx context.Context, q querier, userID string, connID string) (storage.OfflineSessions, error) {
-	return scanOfflineSessions(q.QueryRow(`
+func getOfflineSessions(q querier, userID string, connID string, lock bool) (storage.OfflineSessions, error) {
+	query := `
 		select
 			user_id, conn_id, refresh, connector_data
 		from offline_session
-		where user_id = $1 AND conn_id = $2;
-		`, userID, connID))
+		where user_id = $1 AND conn_id = $2`
+	if lock {
+		// The legacy MySQL driver uses repeatable read. Lock the row so two
+		// concurrent read/modify/write transactions cannot lose an update.
+		query += " for update"
+	}
+	return scanOfflineSessions(q.QueryRow(query, userID, connID))
 }
 
 func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
@@ -759,7 +771,7 @@ func scanOfflineSessions(s scanner) (o storage.OfflineSessions, err error) {
 		if err == sql.ErrNoRows {
 			return o, storage.ErrNotFound
 		}
-		return o, fmt.Errorf("select offline session: %v", err)
+		return o, fmt.Errorf("select offline session: %w", err)
 	}
 	return o, nil
 }

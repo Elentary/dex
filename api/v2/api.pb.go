@@ -1849,7 +1849,7 @@ func (x *ListRefreshResp) GetRefreshTokens() []*RefreshTokenRef {
 	return nil
 }
 
-// RevokeRefreshReq is a request to revoke the refresh token of the user-client pair.
+// RevokeRefreshReq is a request to revoke all refresh tokens of the user-client pair.
 type RevokeRefreshReq struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The "sub" claim returned in the ID Token.
@@ -2047,6 +2047,112 @@ func (x *VerifyPasswordResp) GetVerified() bool {
 }
 
 func (x *VerifyPasswordResp) GetNotFound() bool {
+	if x != nil {
+		return x.NotFound
+	}
+	return false
+}
+
+type RevokeRefreshTokenReq struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The "sub" claim returned in the ID Token.
+	UserId   string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ClientId string `protobuf:"bytes,2,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	// The grant ID from ListRefresh, without the refresh token secret.
+	RefreshTokenId string `protobuf:"bytes,3,opt,name=refresh_token_id,json=refreshTokenId,proto3" json:"refresh_token_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *RevokeRefreshTokenReq) Reset() {
+	*x = RevokeRefreshTokenReq{}
+	mi := &file_api_v2_api_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeRefreshTokenReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeRefreshTokenReq) ProtoMessage() {}
+
+func (x *RevokeRefreshTokenReq) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v2_api_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeRefreshTokenReq.ProtoReflect.Descriptor instead.
+func (*RevokeRefreshTokenReq) Descriptor() ([]byte, []int) {
+	return file_api_v2_api_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *RevokeRefreshTokenReq) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RevokeRefreshTokenReq) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *RevokeRefreshTokenReq) GetRefreshTokenId() string {
+	if x != nil {
+		return x.RefreshTokenId
+	}
+	return ""
+}
+
+type RevokeRefreshTokenResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NotFound      bool                   `protobuf:"varint,1,opt,name=not_found,json=notFound,proto3" json:"not_found,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RevokeRefreshTokenResp) Reset() {
+	*x = RevokeRefreshTokenResp{}
+	mi := &file_api_v2_api_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RevokeRefreshTokenResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RevokeRefreshTokenResp) ProtoMessage() {}
+
+func (x *RevokeRefreshTokenResp) ProtoReflect() protoreflect.Message {
+	mi := &file_api_v2_api_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RevokeRefreshTokenResp.ProtoReflect.Descriptor instead.
+func (*RevokeRefreshTokenResp) Descriptor() ([]byte, []int) {
+	return file_api_v2_api_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *RevokeRefreshTokenResp) GetNotFound() bool {
 	if x != nil {
 		return x.NotFound
 	}
@@ -2263,7 +2369,18 @@ var file_api_v2_api_proto_rawDesc = string([]byte{
 	0x76, 0x65, 0x72, 0x69, 0x66, 0x69, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x08,
 	0x76, 0x65, 0x72, 0x69, 0x66, 0x69, 0x65, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x6e, 0x6f, 0x74, 0x5f,
 	0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x6e, 0x6f, 0x74,
-	0x46, 0x6f, 0x75, 0x6e, 0x64, 0x32, 0xd1, 0x08, 0x0a, 0x03, 0x44, 0x65, 0x78, 0x12, 0x34, 0x0a,
+	0x46, 0x6f, 0x75, 0x6e, 0x64, 0x22, 0x77, 0x0a, 0x15, 0x52, 0x65, 0x76, 0x6f, 0x6b, 0x65, 0x52,
+	0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x12, 0x17,
+	0x0a, 0x07, 0x75, 0x73, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x75, 0x73, 0x65, 0x72, 0x49, 0x64, 0x12, 0x1b, 0x0a, 0x09, 0x63, 0x6c, 0x69, 0x65, 0x6e,
+	0x74, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x63, 0x6c, 0x69, 0x65,
+	0x6e, 0x74, 0x49, 0x64, 0x12, 0x28, 0x0a, 0x10, 0x72, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x5f,
+	0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0e,
+	0x72, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x49, 0x64, 0x22, 0x35,
+	0x0a, 0x16, 0x52, 0x65, 0x76, 0x6f, 0x6b, 0x65, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x54,
+	0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x12, 0x1b, 0x0a, 0x09, 0x6e, 0x6f, 0x74, 0x5f,
+	0x66, 0x6f, 0x75, 0x6e, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x6e, 0x6f, 0x74,
+	0x46, 0x6f, 0x75, 0x6e, 0x64, 0x32, 0xa2, 0x09, 0x0a, 0x03, 0x44, 0x65, 0x78, 0x12, 0x34, 0x0a,
 	0x09, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x12, 0x11, 0x2e, 0x61, 0x70, 0x69,
 	0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x71, 0x1a, 0x12, 0x2e,
 	0x61, 0x70, 0x69, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x52, 0x65, 0x73,
@@ -2332,11 +2449,16 @@ var file_api_v2_api_proto_rawDesc = string([]byte{
 	0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x12, 0x16, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x56, 0x65, 0x72,
 	0x69, 0x66, 0x79, 0x50, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x52, 0x65, 0x71, 0x1a, 0x17,
 	0x2e, 0x61, 0x70, 0x69, 0x2e, 0x56, 0x65, 0x72, 0x69, 0x66, 0x79, 0x50, 0x61, 0x73, 0x73, 0x77,
-	0x6f, 0x72, 0x64, 0x52, 0x65, 0x73, 0x70, 0x22, 0x00, 0x42, 0x36, 0x0a, 0x12, 0x63, 0x6f, 0x6d,
-	0x2e, 0x63, 0x6f, 0x72, 0x65, 0x6f, 0x73, 0x2e, 0x64, 0x65, 0x78, 0x2e, 0x61, 0x70, 0x69, 0x5a,
-	0x20, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x65, 0x78, 0x69,
-	0x64, 0x70, 0x2f, 0x64, 0x65, 0x78, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x76, 0x32, 0x3b, 0x61, 0x70,
-	0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6f, 0x72, 0x64, 0x52, 0x65, 0x73, 0x70, 0x22, 0x00, 0x12, 0x4f, 0x0a, 0x12, 0x52, 0x65, 0x76,
+	0x6f, 0x6b, 0x65, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x12,
+	0x1a, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x52, 0x65, 0x76, 0x6f, 0x6b, 0x65, 0x52, 0x65, 0x66, 0x72,
+	0x65, 0x73, 0x68, 0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x71, 0x1a, 0x1b, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x52, 0x65, 0x76, 0x6f, 0x6b, 0x65, 0x52, 0x65, 0x66, 0x72, 0x65, 0x73, 0x68, 0x54,
+	0x6f, 0x6b, 0x65, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x22, 0x00, 0x42, 0x36, 0x0a, 0x12, 0x63, 0x6f,
+	0x6d, 0x2e, 0x63, 0x6f, 0x72, 0x65, 0x6f, 0x73, 0x2e, 0x64, 0x65, 0x78, 0x2e, 0x61, 0x70, 0x69,
+	0x5a, 0x20, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x64, 0x65, 0x78,
+	0x69, 0x64, 0x70, 0x2f, 0x64, 0x65, 0x78, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x76, 0x32, 0x3b, 0x61,
+	0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 })
 
 var (
@@ -2351,46 +2473,48 @@ func file_api_v2_api_proto_rawDescGZIP() []byte {
 	return file_api_v2_api_proto_rawDescData
 }
 
-var file_api_v2_api_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_api_v2_api_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_api_v2_api_proto_goTypes = []any{
-	(*Client)(nil),              // 0: api.Client
-	(*GetClientReq)(nil),        // 1: api.GetClientReq
-	(*GetClientResp)(nil),       // 2: api.GetClientResp
-	(*CreateClientReq)(nil),     // 3: api.CreateClientReq
-	(*CreateClientResp)(nil),    // 4: api.CreateClientResp
-	(*DeleteClientReq)(nil),     // 5: api.DeleteClientReq
-	(*DeleteClientResp)(nil),    // 6: api.DeleteClientResp
-	(*UpdateClientReq)(nil),     // 7: api.UpdateClientReq
-	(*UpdateClientResp)(nil),    // 8: api.UpdateClientResp
-	(*Password)(nil),            // 9: api.Password
-	(*CreatePasswordReq)(nil),   // 10: api.CreatePasswordReq
-	(*CreatePasswordResp)(nil),  // 11: api.CreatePasswordResp
-	(*UpdatePasswordReq)(nil),   // 12: api.UpdatePasswordReq
-	(*UpdatePasswordResp)(nil),  // 13: api.UpdatePasswordResp
-	(*DeletePasswordReq)(nil),   // 14: api.DeletePasswordReq
-	(*DeletePasswordResp)(nil),  // 15: api.DeletePasswordResp
-	(*ListPasswordReq)(nil),     // 16: api.ListPasswordReq
-	(*ListPasswordResp)(nil),    // 17: api.ListPasswordResp
-	(*Connector)(nil),           // 18: api.Connector
-	(*CreateConnectorReq)(nil),  // 19: api.CreateConnectorReq
-	(*CreateConnectorResp)(nil), // 20: api.CreateConnectorResp
-	(*UpdateConnectorReq)(nil),  // 21: api.UpdateConnectorReq
-	(*UpdateConnectorResp)(nil), // 22: api.UpdateConnectorResp
-	(*DeleteConnectorReq)(nil),  // 23: api.DeleteConnectorReq
-	(*DeleteConnectorResp)(nil), // 24: api.DeleteConnectorResp
-	(*ListConnectorReq)(nil),    // 25: api.ListConnectorReq
-	(*ListConnectorResp)(nil),   // 26: api.ListConnectorResp
-	(*VersionReq)(nil),          // 27: api.VersionReq
-	(*VersionResp)(nil),         // 28: api.VersionResp
-	(*DiscoveryReq)(nil),        // 29: api.DiscoveryReq
-	(*DiscoveryResp)(nil),       // 30: api.DiscoveryResp
-	(*RefreshTokenRef)(nil),     // 31: api.RefreshTokenRef
-	(*ListRefreshReq)(nil),      // 32: api.ListRefreshReq
-	(*ListRefreshResp)(nil),     // 33: api.ListRefreshResp
-	(*RevokeRefreshReq)(nil),    // 34: api.RevokeRefreshReq
-	(*RevokeRefreshResp)(nil),   // 35: api.RevokeRefreshResp
-	(*VerifyPasswordReq)(nil),   // 36: api.VerifyPasswordReq
-	(*VerifyPasswordResp)(nil),  // 37: api.VerifyPasswordResp
+	(*Client)(nil),                 // 0: api.Client
+	(*GetClientReq)(nil),           // 1: api.GetClientReq
+	(*GetClientResp)(nil),          // 2: api.GetClientResp
+	(*CreateClientReq)(nil),        // 3: api.CreateClientReq
+	(*CreateClientResp)(nil),       // 4: api.CreateClientResp
+	(*DeleteClientReq)(nil),        // 5: api.DeleteClientReq
+	(*DeleteClientResp)(nil),       // 6: api.DeleteClientResp
+	(*UpdateClientReq)(nil),        // 7: api.UpdateClientReq
+	(*UpdateClientResp)(nil),       // 8: api.UpdateClientResp
+	(*Password)(nil),               // 9: api.Password
+	(*CreatePasswordReq)(nil),      // 10: api.CreatePasswordReq
+	(*CreatePasswordResp)(nil),     // 11: api.CreatePasswordResp
+	(*UpdatePasswordReq)(nil),      // 12: api.UpdatePasswordReq
+	(*UpdatePasswordResp)(nil),     // 13: api.UpdatePasswordResp
+	(*DeletePasswordReq)(nil),      // 14: api.DeletePasswordReq
+	(*DeletePasswordResp)(nil),     // 15: api.DeletePasswordResp
+	(*ListPasswordReq)(nil),        // 16: api.ListPasswordReq
+	(*ListPasswordResp)(nil),       // 17: api.ListPasswordResp
+	(*Connector)(nil),              // 18: api.Connector
+	(*CreateConnectorReq)(nil),     // 19: api.CreateConnectorReq
+	(*CreateConnectorResp)(nil),    // 20: api.CreateConnectorResp
+	(*UpdateConnectorReq)(nil),     // 21: api.UpdateConnectorReq
+	(*UpdateConnectorResp)(nil),    // 22: api.UpdateConnectorResp
+	(*DeleteConnectorReq)(nil),     // 23: api.DeleteConnectorReq
+	(*DeleteConnectorResp)(nil),    // 24: api.DeleteConnectorResp
+	(*ListConnectorReq)(nil),       // 25: api.ListConnectorReq
+	(*ListConnectorResp)(nil),      // 26: api.ListConnectorResp
+	(*VersionReq)(nil),             // 27: api.VersionReq
+	(*VersionResp)(nil),            // 28: api.VersionResp
+	(*DiscoveryReq)(nil),           // 29: api.DiscoveryReq
+	(*DiscoveryResp)(nil),          // 30: api.DiscoveryResp
+	(*RefreshTokenRef)(nil),        // 31: api.RefreshTokenRef
+	(*ListRefreshReq)(nil),         // 32: api.ListRefreshReq
+	(*ListRefreshResp)(nil),        // 33: api.ListRefreshResp
+	(*RevokeRefreshReq)(nil),       // 34: api.RevokeRefreshReq
+	(*RevokeRefreshResp)(nil),      // 35: api.RevokeRefreshResp
+	(*VerifyPasswordReq)(nil),      // 36: api.VerifyPasswordReq
+	(*VerifyPasswordResp)(nil),     // 37: api.VerifyPasswordResp
+	(*RevokeRefreshTokenReq)(nil),  // 38: api.RevokeRefreshTokenReq
+	(*RevokeRefreshTokenResp)(nil), // 39: api.RevokeRefreshTokenResp
 }
 var file_api_v2_api_proto_depIdxs = []int32{
 	0,  // 0: api.GetClientResp.client:type_name -> api.Client
@@ -2418,25 +2542,27 @@ var file_api_v2_api_proto_depIdxs = []int32{
 	32, // 22: api.Dex.ListRefresh:input_type -> api.ListRefreshReq
 	34, // 23: api.Dex.RevokeRefresh:input_type -> api.RevokeRefreshReq
 	36, // 24: api.Dex.VerifyPassword:input_type -> api.VerifyPasswordReq
-	2,  // 25: api.Dex.GetClient:output_type -> api.GetClientResp
-	4,  // 26: api.Dex.CreateClient:output_type -> api.CreateClientResp
-	8,  // 27: api.Dex.UpdateClient:output_type -> api.UpdateClientResp
-	6,  // 28: api.Dex.DeleteClient:output_type -> api.DeleteClientResp
-	11, // 29: api.Dex.CreatePassword:output_type -> api.CreatePasswordResp
-	13, // 30: api.Dex.UpdatePassword:output_type -> api.UpdatePasswordResp
-	15, // 31: api.Dex.DeletePassword:output_type -> api.DeletePasswordResp
-	17, // 32: api.Dex.ListPasswords:output_type -> api.ListPasswordResp
-	20, // 33: api.Dex.CreateConnector:output_type -> api.CreateConnectorResp
-	22, // 34: api.Dex.UpdateConnector:output_type -> api.UpdateConnectorResp
-	24, // 35: api.Dex.DeleteConnector:output_type -> api.DeleteConnectorResp
-	26, // 36: api.Dex.ListConnectors:output_type -> api.ListConnectorResp
-	28, // 37: api.Dex.GetVersion:output_type -> api.VersionResp
-	30, // 38: api.Dex.GetDiscovery:output_type -> api.DiscoveryResp
-	33, // 39: api.Dex.ListRefresh:output_type -> api.ListRefreshResp
-	35, // 40: api.Dex.RevokeRefresh:output_type -> api.RevokeRefreshResp
-	37, // 41: api.Dex.VerifyPassword:output_type -> api.VerifyPasswordResp
-	25, // [25:42] is the sub-list for method output_type
-	8,  // [8:25] is the sub-list for method input_type
+	38, // 25: api.Dex.RevokeRefreshToken:input_type -> api.RevokeRefreshTokenReq
+	2,  // 26: api.Dex.GetClient:output_type -> api.GetClientResp
+	4,  // 27: api.Dex.CreateClient:output_type -> api.CreateClientResp
+	8,  // 28: api.Dex.UpdateClient:output_type -> api.UpdateClientResp
+	6,  // 29: api.Dex.DeleteClient:output_type -> api.DeleteClientResp
+	11, // 30: api.Dex.CreatePassword:output_type -> api.CreatePasswordResp
+	13, // 31: api.Dex.UpdatePassword:output_type -> api.UpdatePasswordResp
+	15, // 32: api.Dex.DeletePassword:output_type -> api.DeletePasswordResp
+	17, // 33: api.Dex.ListPasswords:output_type -> api.ListPasswordResp
+	20, // 34: api.Dex.CreateConnector:output_type -> api.CreateConnectorResp
+	22, // 35: api.Dex.UpdateConnector:output_type -> api.UpdateConnectorResp
+	24, // 36: api.Dex.DeleteConnector:output_type -> api.DeleteConnectorResp
+	26, // 37: api.Dex.ListConnectors:output_type -> api.ListConnectorResp
+	28, // 38: api.Dex.GetVersion:output_type -> api.VersionResp
+	30, // 39: api.Dex.GetDiscovery:output_type -> api.DiscoveryResp
+	33, // 40: api.Dex.ListRefresh:output_type -> api.ListRefreshResp
+	35, // 41: api.Dex.RevokeRefresh:output_type -> api.RevokeRefreshResp
+	37, // 42: api.Dex.VerifyPassword:output_type -> api.VerifyPasswordResp
+	39, // 43: api.Dex.RevokeRefreshToken:output_type -> api.RevokeRefreshTokenResp
+	26, // [26:44] is the sub-list for method output_type
+	8,  // [8:26] is the sub-list for method input_type
 	8,  // [8:8] is the sub-list for extension type_name
 	8,  // [8:8] is the sub-list for extension extendee
 	0,  // [0:8] is the sub-list for field type_name
@@ -2453,7 +2579,7 @@ func file_api_v2_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_v2_api_proto_rawDesc), len(file_api_v2_api_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   38,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

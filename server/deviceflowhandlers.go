@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/dexidp/dex/server/internal"
 	"github.com/dexidp/dex/storage"
 )
 
@@ -251,6 +253,8 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		} else {
 			s.tokenErrHelper(w, deviceTokenPending, "", http.StatusUnauthorized)
 		}
+	case errAccessDenied:
+		s.tokenErrHelper(w, errAccessDenied, refreshTokenLimitDescription, http.StatusBadRequest)
 	case deviceTokenComplete:
 		codeChallengeFromStorage := deviceToken.PKCE.CodeChallenge
 		providedCodeVerifier := r.Form.Get("code_verifier")
@@ -276,8 +280,62 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 			s.tokenErrHelper(w, errInvalidGrant, "Expecting parameter code_verifier in PKCE flow.", http.StatusBadRequest)
 			return
 		}
+		var response accessTokenResponse
+		// Preserve the raw response of device tokens issued before this change.
+		if json.Unmarshal([]byte(deviceToken.Token), &response) == nil {
+			if err := s.activateDeviceGrant(ctx, deviceCode, response.RefreshToken); err != nil {
+				if errors.Is(err, storage.ErrNotFound) {
+					s.tokenErrHelper(w, errInvalidGrant, "Device refresh token is no longer available.", http.StatusBadRequest)
+				} else {
+					s.logger.ErrorContext(ctx, "failed to activate device refresh token", "err", err)
+					s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+				}
+				return
+			}
+		}
 		w.Write([]byte(deviceToken.Token))
 	}
+}
+
+func (s *Server) activateDeviceGrant(ctx context.Context, deviceCode, rawToken string) error {
+	if rawToken == "" {
+		return nil
+	}
+	token := new(internal.RefreshToken)
+	if err := internal.Unmarshal(rawToken, token); err != nil {
+		return err
+	}
+	row, err := s.storage.GetRefresh(ctx, token.RefreshId)
+	if err != nil {
+		return err
+	}
+	if row.ID != token.RefreshId || row.Token != token.Token {
+		return storage.ErrNotFound
+	}
+	err = s.storage.UpdateOfflineSessions(ctx, row.Claims.UserID, row.ConnectorID, func(old storage.OfflineSessions) (storage.OfflineSessions, error) {
+		ref := old.Refresh[row.ClientID].Find(row.ID)
+		if ref == nil || old.UserID != row.Claims.UserID || old.ConnID != row.ConnectorID {
+			return old, storage.ErrNotFound
+		}
+		if ref.DeviceCode != "" {
+			if ref.DeviceCode != deviceCode || !ref.PendingUntil.IsZero() && s.now().After(ref.PendingUntil) {
+				return old, storage.ErrNotFound
+			}
+			ref.PendingUntil = time.Time{}
+		}
+		return old, nil
+	})
+	if err != nil {
+		return err
+	}
+	row, err = s.storage.GetRefresh(ctx, token.RefreshId)
+	if err != nil {
+		return err
+	}
+	if row.Token != token.Token || s.refreshRowExpired(row) {
+		return storage.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
@@ -337,17 +395,14 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			s.tokenErrHelper(w, errInvalidClient, "Invalid client credentials.", http.StatusUnauthorized)
 			return
 		}
-
-		resp, err := s.exchangeAuthCode(ctx, w, authCode, client)
-		if err != nil {
-			s.logger.ErrorContext(r.Context(), "could not exchange auth code for clien", "client_id", deviceReq.ClientID, "err", err)
-			s.renderError(r, w, http.StatusInternalServerError, "Failed to exchange auth code.")
+		if authCode.ClientID != client.ID {
+			s.renderError(r, w, http.StatusBadRequest, "Invalid auth code.")
 			return
 		}
 
-		// Grab the device token from storage
-		old, err := s.storage.GetDeviceToken(ctx, deviceReq.DeviceCode)
-		if err != nil || s.now().After(old.Expiry) {
+		// Check the device is still pending before issuing a refresh grant.
+		deviceToken, err := s.storage.GetDeviceToken(ctx, deviceReq.DeviceCode)
+		if err != nil || s.now().After(deviceToken.Expiry) || deviceToken.Status != deviceTokenPending {
 			errCode := http.StatusBadRequest
 			if err != nil && err != storage.ErrNotFound {
 				s.logger.ErrorContext(r.Context(), "failed to get device token", "err", err)
@@ -357,9 +412,28 @@ func (s *Server) handleDeviceCallback(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		resp, err := s.exchangeAuthCode(ctx, authCode, client, &deviceToken)
+		if errors.Is(err, errRefreshTokenLimit) {
+			if err := s.storage.UpdateDeviceToken(ctx, deviceReq.DeviceCode, func(old storage.DeviceToken) (storage.DeviceToken, error) {
+				if old.Status == deviceTokenPending {
+					old.Status = errAccessDenied
+				}
+				return old, nil
+			}); err != nil {
+				s.logger.ErrorContext(ctx, "failed to record device refresh token limit", "err", err)
+			}
+			s.renderError(r, w, http.StatusBadRequest, refreshTokenLimitDescription)
+			return
+		}
+		if err != nil {
+			s.logger.ErrorContext(r.Context(), "could not exchange auth code for clien", "client_id", deviceReq.ClientID, "err", err)
+			s.renderError(r, w, http.StatusInternalServerError, "Failed to exchange auth code.")
+			return
+		}
+
 		updater := func(old storage.DeviceToken) (storage.DeviceToken, error) {
-			if old.Status == deviceTokenComplete {
-				return old, errors.New("device token already complete")
+			if old.Status != deviceTokenPending || s.now().After(old.Expiry) {
+				return old, errors.New("device token already resolved")
 			}
 			respStr, err := json.MarshalIndent(resp, "", "  ")
 			if err != nil {

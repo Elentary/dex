@@ -22,7 +22,8 @@ type flavor struct {
 	executeTx func(db *sql.DB, fn func(*sql.Tx) error) error
 
 	// Does the flavor support timezones?
-	supportsTimezones bool
+	supportsTimezones  bool
+	lockOfflineSession bool
 }
 
 // A regexp with a replacement string.
@@ -84,6 +85,7 @@ var (
 	}
 
 	flavorMySQL = flavor{
+		lockOfflineSession: true,
 		queryReplacers: []replacer{
 			{bindRegexp, "?"},
 			// Translate types.

@@ -3,6 +3,7 @@ package etcd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -335,19 +336,27 @@ func (c *conn) CreateOfflineSessions(ctx context.Context, s storage.OfflineSessi
 func (c *conn) UpdateOfflineSessions(ctx context.Context, userID string, connID string, updater func(s storage.OfflineSessions) (storage.OfflineSessions, error)) error {
 	ctx, cancel := context.WithTimeout(ctx, defaultStorageTimeout)
 	defer cancel()
-	return c.txnUpdate(ctx, keySession(userID, connID), func(currentValue []byte) ([]byte, error) {
+	update := func(currentValue []byte) ([]byte, error) {
+		if len(currentValue) == 0 {
+			return nil, storage.ErrNotFound
+		}
 		var current OfflineSessions
-		if len(currentValue) > 0 {
-			if err := json.Unmarshal(currentValue, &current); err != nil {
-				return nil, err
-			}
+		if err := json.Unmarshal(currentValue, &current); err != nil {
+			return nil, err
 		}
 		updated, err := updater(toStorageOfflineSessions(current))
 		if err != nil {
 			return nil, err
 		}
 		return json.Marshal(fromStorageOfflineSessions(updated))
-	})
+	}
+	key := keySession(userID, connID)
+	for attempt := 1; ; attempt++ {
+		err := c.txnUpdate(ctx, key, update)
+		if !errors.Is(err, errConcurrentUpdate) || attempt == 16 {
+			return err
+		}
+	}
 }
 
 func (c *conn) GetOfflineSessions(ctx context.Context, userID string, connID string) (s storage.OfflineSessions, err error) {
@@ -520,6 +529,8 @@ func (c *conn) txnCreate(ctx context.Context, key string, value interface{}) err
 	return nil
 }
 
+var errConcurrentUpdate = errors.New("concurrent conflicting update happened")
+
 func (c *conn) txnUpdate(ctx context.Context, key string, update func(current []byte) ([]byte, error)) error {
 	getResp, err := c.db.Get(ctx, key)
 	if err != nil {
@@ -546,7 +557,7 @@ func (c *conn) txnUpdate(ctx context.Context, key string, update func(current []
 		return err
 	}
 	if !updateResp.Succeeded {
-		return fmt.Errorf("failed to update key=%q: concurrent conflicting update happened", key)
+		return fmt.Errorf("failed to update key=%q: %w", key, errConcurrentUpdate)
 	}
 	return nil
 }
